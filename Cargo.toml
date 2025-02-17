@@ -6,9 +6,9 @@ description = "Build container images from RPMs"
 # rpmoci uses DNF (via pyo3) which is GPLV2+ licensed,
 # but uses Apache-2.0 licensed code compatible with GPL-3.0 but not GPL-2.0
 license = "GPL-3.0-or-later"
-documentation = "https://github.com/microsoft/rpmoci/blob/main/README.md"
-homepage = "https://github.com/microsoft/rpmoci"
-repository = "https://github.com/microsoft/rpmoci"
+documentation = "https://github.com/metaswitch/rpmoci/blob/main/README.md"
+homepage = "https://github.com/metaswitch/rpmoci"
+repository = "https://github.com/metaswitch/rpmoci"
 
 [dependencies]
 anyhow = "1.0.75"
@@ -23,7 +23,7 @@ log = "0.4.19"
 pathdiff = "0.2.1"
 pyo3 = { version = "0.23.1", features = ["auto-initialize"] }
 rpm = { version = "0.16.0", default-features = false }
-rusqlite = "0.32.1"
+rusqlite = "0.33.0"
 serde = { version = "1.0.185", features = ["derive"] }
 serde_json = "1.0.105"
 tar = "0.4.38"

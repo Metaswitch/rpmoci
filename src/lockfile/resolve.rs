@@ -176,7 +176,7 @@ impl<'a> Deref for Base<'a> {
     }
 }
 
-impl<'a> Drop for Base<'a> {
+impl Drop for Base<'_> {
     fn drop(&mut self) {
         // Unload plugins as otherwise dnf can raise an error when we call setup_base again
         // self.value.call_method0("unload_plugins").unwrap();

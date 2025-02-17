@@ -11,5 +11,6 @@ allow = [
     "GPL-3.0",
     "BSD-3-Clause",
     "Unicode-3.0",
+    "Zlib"
 ]
 confidence-threshold = 1.0
