@@ -61,7 +61,7 @@ This can then be built into an image:
 sudo rpmoci build --image tini --tag my-first-rpmoci-image
 ```
 
-The image will be created in a OCI layout directory called `tini`.
+The image will be created in an OCI layout directory called `tini`.
 rpmoci doesn't handle image distribution - users are expected to use tools like [oras](https://oras.land/) or [skopeo](https://github.com/containers/skopeo) to push the image to a registry.
 
 A lockfile, `rpmoci.lock`, will be created so you can re-run the build later and get the same packages.
