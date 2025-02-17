@@ -1,6 +1,9 @@
 ### Breaking Changes
 ### Added
 ### Fixed
+- A more thorough fix for repositories that have packages for multiple architectures in the same repository.
+  - The archictecture of a package is now stored in the lockfile.
+  - This change is backwards compatible - older versions of rpmoci will ignore this field and may select the wrong package on download.
 
 ## 0.4.1 - 2024-11-21
 

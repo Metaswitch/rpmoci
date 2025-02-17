@@ -100,6 +100,7 @@ def pkg_to_dict(pkg):
         "evr": pkg.evr,
         "checksum": chksum_to_dict(pkg.chksum),
         "repoid": pkg.repoid,
+        "arch": pkg.arch,
     }
 
 
