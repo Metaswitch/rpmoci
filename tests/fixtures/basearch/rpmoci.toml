@@ -1,5 +1,7 @@
 [contents]
-packages = ["basesystem"]
+packages = [
+    "libgcc", # has i686 and x86_64 variants
+    "basesystem"] # is noarch
 
 [[contents.repositories]]
 url = "https://cdn-ubi.redhat.com/content/public/ubi/dist/ubi9/9/$basearch/baseos/os"

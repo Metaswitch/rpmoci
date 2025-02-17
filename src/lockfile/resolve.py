@@ -76,7 +76,9 @@ def get_packages(base, pkg_spec):
         subj = dnf.subject.Subject(pkg_spec)
         query = subj.get_best_query(base.sack)
         query = query.available()
-        query = query.filterm(latest_per_arch_by_priority=True)
+        query = query.filterm(
+            latest_per_arch_by_priority=True, arch=[base.conf.basearch, "noarch"]
+        )
 
     pkgs = query.run()
     if not pkgs:
