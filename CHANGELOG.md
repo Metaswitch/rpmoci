@@ -1,5 +1,13 @@
+## Unreleased
 ### Breaking Changes
 ### Added
+### Fixed
+
+## 0.4.2 - 2025-02-18
+
+### Added
+- Verify checksums of packages when using vendoring functions.
+
 ### Fixed
 - A more thorough fix for repositories that have packages for multiple architectures in the same repository.
   - Packages are filtered by base architecture, and the architecture of a package is now stored in the lockfile
