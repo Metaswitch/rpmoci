@@ -15,6 +15,7 @@
 //! You should have received a copy of the GNU General Public License
 //! along with this program.  If not, see <https://www.gnu.org/licenses/>.
 use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::fmt;
 use std::io::Write;
 use std::path::Path;
 
@@ -117,6 +118,18 @@ pub enum Algorithm {
     SHA384,
     /// The SHA512 algorithm
     SHA512,
+}
+
+impl fmt::Display for Algorithm {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Algorithm::MD5 => write!(f, "md5"),
+            Algorithm::SHA1 => write!(f, "sha1"),
+            Algorithm::SHA256 => write!(f, "sha256"),
+            Algorithm::SHA384 => write!(f, "sha384"),
+            Algorithm::SHA512 => write!(f, "sha512"),
+        }
+    }
 }
 
 impl Lockfile {

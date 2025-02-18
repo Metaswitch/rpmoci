@@ -208,7 +208,7 @@ fn test_simple_build() {
 }
 
 #[test]
-fn test_simple_vendor() {
+fn test_vendor() {
     let (_tmp_dir, root) = setup_test("simple_vendor");
     let output = rpmoci()
         .arg("update")
@@ -230,6 +230,39 @@ fn test_simple_vendor() {
     let stderr = std::str::from_utf8(&output.stderr).unwrap();
     eprintln!("stderr: {}", stderr);
     assert!(output.status.success());
+
+    let status = rpmoci()
+        .arg("build")
+        .arg("--locked")
+        .arg("--vendor-dir=.")
+        .arg("--image=vendor")
+        .arg("--tag=test")
+        .current_dir(&root)
+        .status()
+        .unwrap();
+    assert!(status.success());
+
+    // Edit the lockfile to replace the checksum with a placeholder
+    let status = Command::new("sed")
+        .arg("-i")
+        .arg("s/checksum = \".*\"/checksum = \"REPLACED\"/")
+        .arg("rpmoci.lock")
+        .current_dir(&root)
+        .status()
+        .unwrap();
+    assert!(status.success());
+
+    // And check that the build now fails
+    let status = rpmoci()
+        .arg("build")
+        .arg("--locked")
+        .arg("--vendor-dir=.")
+        .arg("--image=vendor")
+        .arg("--tag=test")
+        .current_dir(&root)
+        .status()
+        .unwrap();
+    assert!(!status.success());
 }
 
 #[test]

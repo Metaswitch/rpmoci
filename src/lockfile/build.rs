@@ -24,9 +24,10 @@ use glob::glob;
 use ocidir::oci_spec::image::MediaType;
 use ocidir::{new_empty_manifest, OciDir};
 use rusqlite::Connection;
+use sha2::Digest;
 use tempfile::TempDir;
 
-use super::Lockfile;
+use super::{Algorithm, Lockfile};
 use crate::archive::append_dir_all_with_xattrs;
 use crate::config::Config;
 use crate::write;
@@ -54,6 +55,10 @@ impl Lockfile {
         let creation_time = creation_time()?;
         let installroot = TempDir::new()?; // This needs to outlive the layer builder below.
         if let Some(vendor_dir) = vendor_dir {
+            // When using vendored RPMs, verify checksums.
+            // In the non-vendored case, dnf does this.
+            self.verify_checksums(vendor_dir)
+                .context("Checksum verification failure")?;
             // Use vendored RPMs rather than downloading
             self.create_installroot(installroot.path(), vendor_dir, false, cfg, &creation_time)
         } else {
@@ -102,6 +107,58 @@ impl Lockfile {
             Some(tag),
             ocidir::oci_spec::image::Platform::default(),
         )?;
+        Ok(())
+    }
+
+    fn verify_checksums(&self, vendor_dir: &Path) -> Result<(), anyhow::Error> {
+        write::ok("Verifying", "Vendored RPM checksums")?;
+
+        for file in fs::read_dir(vendor_dir)? {
+            let path = file?.path();
+
+            if path.extension() == Some(OsStr::new("rpm")) {
+                let pkg = rpm::Package::open(&path)
+                    .context(format!("Failed to open RPM package {}", path.display()))?;
+
+                let pkg_name = pkg
+                    .metadata
+                    .get_name()
+                    .context(format!("Failed to get RPM name for {}", path.display()))?;
+
+                match self.packages.iter().find(|p| p.name == pkg_name) {
+                    Some(p) => {
+                        if p.checksum.algorithm != Algorithm::SHA256 {
+                            bail!(
+                                "Unsupported checksum algorithm for package {}: {}",
+                                pkg_name,
+                                p.checksum.algorithm
+                            );
+                        }
+
+                        let mut hasher = sha2::Sha256::new();
+                        let mut file = fs::File::open(&path)
+                            .context(format!("Failed to open file: {}", path.display()))?;
+                        std::io::copy(&mut file, &mut hasher)
+                            .context(format!("Failed to read file: {}", path.display()))?;
+                        let checksum = format!("{:x}", hasher.finalize());
+
+                        eprintln!("Checksum: {}", checksum);
+
+                        if checksum != p.checksum.checksum {
+                            bail!(
+                                "Checksum mismatch for package {}: expected {}, got {}",
+                                pkg_name,
+                                p.checksum.checksum,
+                                checksum
+                            );
+                        }
+                    }
+                    None => {
+                        bail!("Package {} found in vendor directory but not found in lockfile. File name: {}", pkg_name, path.display());
+                    }
+                }
+            }
+        }
         Ok(())
     }
 
