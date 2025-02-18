@@ -87,6 +87,11 @@ pub struct Package {
     pub checksum: Checksum,
     /// The id of the package's repository
     pub repoid: String,
+    /// The architecture of the package
+    /// Optional to support older lockfiles. If a new lockfile format is introduced
+    /// that requires this field, it should be made mandatory.
+    #[serde(default)]
+    pub arch: Option<String>,
 }
 
 /// Checksum of RPM package

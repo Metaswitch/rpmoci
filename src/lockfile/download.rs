@@ -46,7 +46,14 @@ impl Lockfile {
             let packages = self
                 .packages
                 .iter()
-                .map(|p| (p.name.clone(), p.evr.clone(), p.checksum.checksum.clone()))
+                .map(|p| {
+                    (
+                        p.name.clone(),
+                        p.evr.clone(),
+                        p.checksum.checksum.clone(),
+                        p.arch.clone().unwrap_or_default(),
+                    )
+                })
                 .collect::<Vec<_>>();
 
             let args = PyTuple::new(
