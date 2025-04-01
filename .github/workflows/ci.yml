@@ -10,11 +10,10 @@ jobs:
     steps:
       - name: Install dependencies
         run: unset HOME; tdnf install -y build-essential git openssl-devel python3-devel sudo ca-certificates dnf sqlite-devel
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: stable
-          override: true
+          components: clippy, rustfmt
       - name: Check format
         run: cargo fmt -- --check
       - name: Run cargo check
@@ -30,19 +29,15 @@ jobs:
     steps:
       - name: Install dependencies
         run: unset HOME; tdnf install -y build-essential git openssl-devel python3-devel sudo ca-certificates dnf moby-cli skopeo shadow-utils sqlite-devel
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          override: true
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
       - uses:  ./.github/actions/test
 
   cargo-deny:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v3
-      - uses: EmbarkStudios/cargo-deny-action@v1
+      - uses: actions/checkout@v4
+      - uses: EmbarkStudios/cargo-deny-action@v2
 
   build:
     runs-on: ubuntu-24.04
@@ -51,12 +46,8 @@ jobs:
     steps:
       - name: Install dependencies
         run: unset HOME; tdnf install -y build-essential git openssl-devel python3-devel sudo ca-certificates dnf sqlite-devel shadow-utils 
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          override: true
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
       - name: Install cargo-generate-rpm
         run: cargo install cargo-generate-rpm
       - name: Make oci image
