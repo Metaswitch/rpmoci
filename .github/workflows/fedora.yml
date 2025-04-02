@@ -1,6 +1,9 @@
 name: fedora
 
-on: [pull_request]
+on:
+  push:
+    branches: [main]
+  pull_request:
 
 jobs:
   test:
@@ -14,5 +17,5 @@ jobs:
           dnf install -y openssl-devel python3-devel sqlite-devel dnf-plugins-core util-linux rust cargo skopeo
           dnf config-manager --add-repo https://download.docker.com/linux/fedora/docker-ce.repo
           dnf install -y docker-ce-cli
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - uses:  ./.github/actions/test
