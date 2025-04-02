@@ -48,7 +48,6 @@ impl Lockfile {
                 c_str!("resolve"),
             )?;
             let base = setup_base(py, repositories, &gpgkeys)?;
-
             let etc_os_release = ETC_OS_RELEASE.to_string();
             let specs = if include_etc_os_release && !pkg_specs.contains(&etc_os_release) {
                 let mut specs = pkg_specs.clone();
@@ -57,6 +56,7 @@ impl Lockfile {
             } else {
                 pkg_specs.clone()
             };
+            eprintln!("3");
 
             let args = PyTuple::new(py, [base.as_any(), &specs.into_pyobject(py)?])?;
             // Run the resolve function, returning a json string, which we shall deserialize.
@@ -217,15 +217,20 @@ pub(crate) fn setup_base<'a>(
     repositories: &[Repository],
     gpgkeys: &[Url],
 ) -> Result<Base<'a>> {
-    let dnf = PyModule::import(py, "dnf")?;
-    let base = dnf.getattr("Base")?.call0()?;
-    let conf = base.getattr("conf")?;
+    let dnf = PyModule::import(py, "dnf").context("Failed to import dnf")?;
+    let base = dnf
+        .getattr("Base")?
+        .call0()
+        .context("Failed to create base")?;
+    let conf = base.getattr("conf").context("Failed to get conf")?;
 
     // To support running in a user namespace override the cache and log directories
     // as dnf will choose directories only root can write to.
     if let Some(cache_dir) = cache_dir() {
-        conf.setattr("cachedir", &cache_dir)?;
-        conf.setattr("logdir", &cache_dir)?;
+        conf.setattr("cachedir", cache_dir.as_os_str())
+            .context("Failed to set cachedir")?;
+        conf.setattr("logdir", cache_dir.as_os_str())
+            .context("Failed to set logdir")?;
     }
 
     base.call_method0("init_plugins")?;
