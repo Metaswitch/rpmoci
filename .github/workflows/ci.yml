@@ -11,8 +11,8 @@ jobs:
     container:
       image: almalinux:9
     steps:
-      - uses: ./.github/actions/dependencies
       - uses: actions/checkout@v4
+      - uses: ./.github/actions/dependencies
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy, rustfmt
@@ -29,8 +29,8 @@ jobs:
       image: almalinux:9
       options: --privileged
     steps:
-      - uses: ./.github/actions/dependencies
       - uses: actions/checkout@v4
+      - uses: ./.github/actions/dependencies
       - uses: dtolnay/rust-toolchain@stable
       - uses:  ./.github/actions/test
 
@@ -45,8 +45,8 @@ jobs:
     container:
       image: almalinux:9
     steps:
-      - uses: ./.github/actions/dependencies
       - uses: actions/checkout@v4
+      - uses: ./.github/actions/dependencies
       - uses: dtolnay/rust-toolchain@stable
       - name: Install cargo-generate-rpm
         run: cargo install cargo-generate-rpm
