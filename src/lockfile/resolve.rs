@@ -98,10 +98,7 @@ impl Lockfile {
                         Ok(paths) => Some(
                             paths
                                 .into_iter()
-                                .filter_map(|p| match p {
-                                    Ok(path) => Some(path),
-                                    Err(_) => None,
-                                })
+                                .filter_map(|p| p.ok())
                                 .collect::<Vec<PathBuf>>(),
                         ),
                         Err(_) => None,

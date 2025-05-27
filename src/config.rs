@@ -57,6 +57,8 @@ pub(crate) struct PackageConfig {
     pub(crate) repositories: Vec<Repository>,
     pub(crate) packages: Vec<String>,
     #[serde(default)]
+    pub(crate) exclude: Vec<String>,
+    #[serde(default)]
     pub(crate) gpgkeys: Vec<Url>,
     /// Whether to install documentation files.
     /// Defaults to false, to produce smaller container images.

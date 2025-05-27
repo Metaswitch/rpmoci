@@ -334,7 +334,7 @@ fn test_base_arch() {
 #[cfg(feature = "test-docker")]
 #[test]
 fn test_capabilities() {
-    let output = build_and_run("capabilities");
+    let output = build_and_run("capabilities", true);
     let stderr = std::str::from_utf8(&output.stderr).unwrap();
     eprintln!("stderr: {}", stderr);
     assert!(std::str::from_utf8(&output.stdout)
@@ -347,7 +347,7 @@ fn test_capabilities() {
 #[test]
 fn test_hardlinks() {
     // This test checks that /usr/bin/ld has a hardlink, i.e that rpmoci hasn't copied the file
-    let output = build_and_run("hardlinks");
+    let output = build_and_run("hardlinks", true);
     let stderr = std::str::from_utf8(&output.stderr).unwrap();
     eprintln!("stderr: {}", stderr);
     assert_eq!(std::str::from_utf8(&output.stdout).unwrap().trim(), "2");
@@ -373,7 +373,13 @@ fn test_hardlinks() {
     assert!(status.success());
 }
 
-fn build_and_run(image: &str) -> std::process::Output {
+#[cfg(feature = "test-docker")]
+#[test]
+fn test_exclude() {
+    build_and_run("exclude", false);
+}
+
+fn build_and_run(image: &str, should_succeed: bool) -> std::process::Output {
     let (_tmp_dir, root) = setup_test(image);
     let status = rpmoci()
         .arg("build")
@@ -390,7 +396,13 @@ fn build_and_run(image: &str) -> std::process::Output {
         .arg(format!("{}:test", image))
         .output()
         .expect("failed to run container");
-    assert!(output.status.success());
+    let stderr = std::str::from_utf8(&output.stderr).unwrap();
+    eprintln!("stderr: {}", stderr);
+    if should_succeed {
+        assert!(output.status.success());
+    } else {
+        assert!(!output.status.success());
+    }
     output
 }
 
