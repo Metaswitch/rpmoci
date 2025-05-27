@@ -9,10 +9,9 @@ jobs:
   check:
     runs-on: ubuntu-24.04
     container:
-      image: mcr.microsoft.com/cbl-mariner/base/core:2.0
+      image: almalinux:9
     steps:
-      - name: Install dependencies
-        run: unset HOME; tdnf install -y build-essential git openssl-devel python3-devel sudo ca-certificates dnf sqlite-devel
+      - uses: ./.github/actions/dependencies
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -27,11 +26,10 @@ jobs:
   test:
     runs-on: ubuntu-24.04
     container:
-      image: mcr.microsoft.com/cbl-mariner/base/core:2.0
+      image: almalinux:9
       options: --privileged
     steps:
-      - name: Install dependencies
-        run: unset HOME; tdnf install -y build-essential git openssl-devel python3-devel sudo ca-certificates dnf moby-cli skopeo shadow-utils sqlite-devel
+      - uses: ./.github/actions/dependencies
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses:  ./.github/actions/test
@@ -45,10 +43,9 @@ jobs:
   build:
     runs-on: ubuntu-24.04
     container:
-      image: mcr.microsoft.com/cbl-mariner/base/core:2.0
+      image: almalinux:9
     steps:
-      - name: Install dependencies
-        run: unset HOME; tdnf install -y build-essential git openssl-devel python3-devel sudo ca-certificates dnf sqlite-devel shadow-utils 
+      - uses: ./.github/actions/dependencies
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - name: Install cargo-generate-rpm
