@@ -75,5 +75,5 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - name: Install cargo-generate-rpm
         run: cargo install cargo-generate-rpm
-      - name: Make oci image
-        run: make oci
+      - name: Make rpm
+        run: make rpm
