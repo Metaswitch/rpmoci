@@ -23,7 +23,7 @@ use anyhow::Result;
 use serde::{Deserialize, Serialize};
 
 use crate::write;
-use crate::{config::Config, NAME};
+use crate::{NAME, config::Config};
 
 mod build;
 mod download;

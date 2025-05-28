@@ -17,12 +17,12 @@ use std::ffi::OsStr;
 use std::path::Path;
 use std::{fs, process::Command};
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use chrono::DateTime;
 use flate2::Compression;
 use glob::glob;
 use ocidir::oci_spec::image::MediaType;
-use ocidir::{new_empty_manifest, OciDir};
+use ocidir::{OciDir, new_empty_manifest};
 use rusqlite::Connection;
 use sha2::Digest;
 use tempfile::TempDir;
@@ -154,7 +154,11 @@ impl Lockfile {
                         }
                     }
                     None => {
-                        bail!("Package {} found in vendor directory but not found in lockfile. File name: {}", pkg_name, path.display());
+                        bail!(
+                            "Package {} found in vendor directory but not found in lockfile. File name: {}",
+                            pkg_name,
+                            path.display()
+                        );
                     }
                 }
             }

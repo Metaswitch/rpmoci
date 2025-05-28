@@ -14,7 +14,7 @@
 //! along with this program.  If not, see <https://www.gnu.org/licenses/>.
 use anyhow::{Context, Result};
 use std::{
-    collections::{hash_map::Entry, HashMap},
+    collections::{HashMap, hash_map::Entry},
     io::Write,
     os::unix::{
         fs::MetadataExt,
