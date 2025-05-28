@@ -38,7 +38,7 @@ jobs:
         run: |
           useradd -m -s /bin/bash rootless
           su - rootless
-          cargo test --features test-docker --skip test_simple_build
+          cargo test --features test-docker -- --skip test_simple_build
 
   test-fedora:
     runs-on: ubuntu-24.04
