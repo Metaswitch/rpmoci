@@ -14,6 +14,3 @@ rpm: clean
 	CARGO_TARGET_DIR=target cargo generate-rpm
 	mkdir -p out
 	cp target/generate-rpm/rpmoci-`$(CARGO_TARGET_DIR)/release/rpmoci --version | cut -d ' ' -f 2`*.rpm out/
-
-oci: rpm
-	sudo $(CARGO_TARGET_DIR)/release/rpmoci build -v --image out/rpmoci --tag `$(CARGO_TARGET_DIR)/release/rpmoci --version | cut -d ' ' -f 2`

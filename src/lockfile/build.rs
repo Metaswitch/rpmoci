@@ -220,6 +220,28 @@ impl Lockfile {
         }
         write::ok("Installed", "packages successfully")?;
 
+        // Remove excluded packages. This is done with rpm --nodeps --erase
+        // because dnf reasonably refuses to remove packages that are dependencies of other installed packages.
+        // This is a workaround for bash being a dependency of glibc on Fedora/RHEL derivatives.
+        if !cfg.contents.exclude.is_empty() {
+            let mut rpm_erase = Command::new("rpm");
+            rpm_erase
+                .env("SOURCE_DATE_EPOCH", creation_time.timestamp().to_string())
+                .arg("--root")
+                .arg(installroot)
+                .arg("--erase")
+                .arg("--nodeps");
+            for pkg in &cfg.contents.exclude {
+                rpm_erase.arg(pkg);
+            }
+            write::ok("Removing", "excluded packages")?;
+            log::debug!("Running `{:?}`", rpm_erase);
+            let status = rpm_erase.status().context("Failed to run rpm")?;
+            if !status.success() {
+                bail!("failed to rpm erase excluded packages");
+            }
+        }
+
         // Remove unnecessary installation artifacts from the rootfs if present
         let _ = fs::remove_dir_all(installroot.join("var/log"));
         let _ = fs::remove_dir_all(installroot.join("var/cache"));

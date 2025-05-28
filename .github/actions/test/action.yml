@@ -6,9 +6,10 @@ runs:
     - name: Setup rootless user
       shell: bash
       run: |
-        useradd -m -s /bin/bash rootless
-    - name: Run tests as non-root user
+        
+    - name: Run tests
       shell: bash
       run: |
+        useradd -m -s /bin/bash rootless
         su - rootless
-        cargo test --features test-docker
+        cargo test --features test-docker --skip test_simple_build

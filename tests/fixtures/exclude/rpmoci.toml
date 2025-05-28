@@ -1,0 +1,11 @@
+[contents]
+packages = ["glibc"]
+exclude = ["bash", "ncurses-base", "ncurses-libs"]
+
+[[contents.repositories]]
+url = "https://cdn-ubi.redhat.com/content/public/ubi/dist/ubi9/9/$basearch/baseos/os"
+id = "ubi"
+options = { gpgcheck = "false" }
+
+[image]
+cmd = ["/bin/bash"]

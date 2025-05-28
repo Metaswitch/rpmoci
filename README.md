@@ -106,6 +106,13 @@ packages = [
 ]
 ```
 
+##### Exclusions
+Packages can be excluded via the `contents.exclude` field.
+Any excluded package here will not be included in the final image, **regardless of package dependencies**.
+This should be used with great care, since it is similar to running `rpm --erase --nodeps <package>`.
+
+*Why have this feature at all? Because in RHEL and derivatives, `glibc` depends on `bash` and `ncurses` which are undesirable in the kind of small microservice containers that rpmoci aims to build.*
+
 #### Documentation file
 
 Whether or not documentation files are included in the produced containers can be specified via the `content.docs` boolean field.
