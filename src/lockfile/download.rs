@@ -18,14 +18,14 @@ use std::fs::{self, File};
 use std::path::Path;
 use std::{io::Write, process::Command};
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use pyo3::ffi::c_str;
 use pyo3::prelude::*;
 use pyo3::types::PyTuple;
-use tempfile::{tempdir, TempDir};
+use tempfile::{TempDir, tempdir};
 
-use super::resolve::setup_base;
 use super::Lockfile;
+use super::resolve::setup_base;
 use crate::config::Config;
 use crate::write;
 

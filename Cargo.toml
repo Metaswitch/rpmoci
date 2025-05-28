@@ -1,7 +1,7 @@
 [package]
 name = "rpmoci"
-version = "0.4.2"
-edition = "2021"
+version = "0.4.3"
+edition = "2024"
 description = "Build container images from RPMs"
 # rpmoci uses DNF (via pyo3) which is GPLV2+ licensed,
 # but uses Apache-2.0 licensed code compatible with GPL-3.0 but not GPL-2.0

@@ -16,8 +16,8 @@
 //! along with this program.  If not, see <https://www.gnu.org/licenses/>.
 use anyhow::Result;
 use ocidir::oci_spec::{
-    image::{Arch, ConfigBuilder, ImageConfiguration, ImageConfigurationBuilder, Os},
     OciSpecError,
+    image::{Arch, ConfigBuilder, ImageConfiguration, ImageConfigurationBuilder, Os},
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -304,9 +304,10 @@ mod tests {
             .to_oci_image_configuration(HashMap::new(), chrono::Utc::now())
             .unwrap();
         let envs = config.config().as_ref().unwrap().env().as_ref().unwrap();
-        assert!(envs
-            .iter()
-            .any(|e| e == "PATH=/usr/local/bin:/usr/local/sbin:/usr/bin:/usr/sbin:/bin:/sbin"));
+        assert!(
+            envs.iter()
+                .any(|e| e == "PATH=/usr/local/bin:/usr/local/sbin:/usr/bin:/usr/sbin:/bin:/sbin")
+        );
         assert_eq!(envs.len(), 2);
     }
 

@@ -21,7 +21,7 @@ use std::{
     time::Instant,
 };
 
-use anyhow::{bail, Context};
+use anyhow::{Context, bail};
 mod archive;
 pub mod cli;
 pub mod config;
@@ -68,13 +68,17 @@ pub fn main(command: Command) -> anyhow::Result<()> {
                     lockfile.resolve_from_previous(&cfg)?
                 } else {
                     if from_lockfile {
-                        bail!("the lock file is not up-to-date. Use of --from-lockfile requires that the lock file is up-to-date");
+                        bail!(
+                            "the lock file is not up-to-date. Use of --from-lockfile requires that the lock file is up-to-date"
+                        );
                     }
                     Lockfile::resolve_from_config(&cfg)?
                 }
             } else {
                 if from_lockfile {
-                    bail!("the lock file is not up-to-date. Use of --from-lockfile requires that the lock file is up-to-date");
+                    bail!(
+                        "the lock file is not up-to-date. Use of --from-lockfile requires that the lock file is up-to-date"
+                    );
                 }
                 Lockfile::resolve_from_config(&cfg)?
             };
@@ -140,13 +144,13 @@ pub fn main(command: Command) -> anyhow::Result<()> {
                     return Err(err.context(format!(
                         "failed to parse existing lock file {}",
                         lockfile_path.display()
-                    )))
+                    )));
                 }
                 (Ok(None), true) => {
                     bail!(format!(
-                    "the lock file {} is missing and needs to be generated but --locked was passed to prevent this",
-                    lockfile_path.display()
-                ))
+                        "the lock file {} is missing and needs to be generated but --locked was passed to prevent this",
+                        lockfile_path.display()
+                    ))
                 }
                 (Ok(None), false) => {
                     changed = true;

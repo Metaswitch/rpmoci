@@ -180,9 +180,11 @@ fn test_simple_build() {
     let lockfile_path = root.join("rpmoci.lock");
     eprintln!("lockfile_path: {}", lockfile_path.display());
     let lockfile: Lockfile = toml::from_str(&fs::read_to_string(lockfile_path).unwrap()).unwrap();
-    assert!(lockfile
-        .iter_packages()
-        .any(|p| p.name == "mariner-release"));
+    assert!(
+        lockfile
+            .iter_packages()
+            .any(|p| p.name == "mariner-release")
+    );
 
     let stderr = std::str::from_utf8(&output1.stderr).unwrap();
     eprintln!("stderr: {}", stderr);
@@ -277,9 +279,11 @@ fn test_no_auto_etc_os_release() {
     let lockfile_path = root.join("rpmoci.lock");
     eprintln!("lockfile_path: {}", lockfile_path.display());
     let lockfile: Lockfile = toml::from_str(&fs::read_to_string(lockfile_path).unwrap()).unwrap();
-    assert!(!lockfile
-        .iter_packages()
-        .any(|p| p.name == "mariner-release"));
+    assert!(
+        !lockfile
+            .iter_packages()
+            .any(|p| p.name == "mariner-release")
+    );
 }
 
 #[test]
@@ -337,9 +341,11 @@ fn test_capabilities() {
     let output = build_and_run("capabilities", true);
     let stderr = std::str::from_utf8(&output.stderr).unwrap();
     eprintln!("stderr: {}", stderr);
-    assert!(std::str::from_utf8(&output.stdout)
-        .unwrap()
-        .contains("cap_net_admin=ep"));
+    assert!(
+        std::str::from_utf8(&output.stdout)
+            .unwrap()
+            .contains("cap_net_admin=ep")
+    );
     assert!(output.status.success());
 }
 
