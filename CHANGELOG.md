@@ -3,6 +3,11 @@
 ### Added
 ### Fixed
 
+## 0.4.3 - 2025-05-28
+
+### Added
+- Allow excluding individual packages, to enable building microservices on RHEL and derivatives without bash.
+
 ## 0.4.2 - 2025-02-18
 
 ### Added
