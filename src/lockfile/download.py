@@ -45,10 +45,6 @@ def get_package(base, name, evr, checksum, arch):
     pkgs = [p for p in pkgs if p.chksum and p.chksum[1].hex() == checksum]
 
     if not pkgs:
-        msg = (
-            "Package could no longer be found in repositories. Name: '%s', evr: '%s'"
-            % name,
-            evr,
-        )
+        msg = f"Package could no longer be found in repositories. Name: '{name}', evr: '{evr}'"
         raise dnf.exceptions.DepsolveError(msg)
     return pkgs[0]
