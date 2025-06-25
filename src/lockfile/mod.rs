@@ -14,7 +14,7 @@
 //!
 //! You should have received a copy of the GNU General Public License
 //! along with this program.  If not, see <https://www.gnu.org/licenses/>.
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::io::Write;
 use std::path::Path;
@@ -36,8 +36,8 @@ pub struct Lockfile {
     packages: BTreeSet<Package>,
     #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
     local_packages: BTreeSet<LocalPackage>,
-    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
-    repo_gpg_config: HashMap<String, RepoKeyInfo>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    repo_gpg_config: BTreeMap<String, RepoKeyInfo>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     global_key_specs: Vec<url::Url>,
 }
@@ -65,7 +65,7 @@ struct DnfOutput {
     /// Local packages
     local_packages: Vec<LocalPackage>,
     /// Repository GPG configuration
-    repo_gpg_config: HashMap<String, RepoKeyInfo>,
+    repo_gpg_config: BTreeMap<String, RepoKeyInfo>,
 }
 
 /// GPG key configuration for a specified repository
