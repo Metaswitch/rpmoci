@@ -3,6 +3,7 @@
 ### Added
 ### Fixed
 - Make GPG config be consistently ordered in lockfile.
+- Remove debug print statement.
 
 ## 0.4.3 - 2025-05-28
 

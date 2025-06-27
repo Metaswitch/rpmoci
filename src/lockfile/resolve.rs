@@ -56,7 +56,6 @@ impl Lockfile {
             } else {
                 pkg_specs.clone()
             };
-            eprintln!("3");
 
             let args = PyTuple::new(py, [base.as_any(), &specs.into_pyobject(py)?])?;
             // Run the resolve function, returning a json string, which we shall deserialize.
