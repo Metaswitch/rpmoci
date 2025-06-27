@@ -50,6 +50,7 @@ impl Lockfile {
                     (
                         p.name.clone(),
                         p.evr.clone(),
+                        p.checksum.algorithm.to_string(),
                         p.checksum.checksum.clone(),
                         p.arch.clone().unwrap_or_default(),
                     )
