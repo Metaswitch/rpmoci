@@ -130,13 +130,12 @@ pub fn main(command: Command) -> anyhow::Result<()> {
                     write::error(
                         "Warning",
                         format!(
-                            "failed to parse existing lock file. Generating a new one. Error: {}",
-                            err
+                            "failed to parse existing lock file. Generating a new one. Error: {err}"
                         ),
                     )?;
                     err.chain()
                         .skip(1)
-                        .for_each(|cause| eprintln!("caused by: {}", cause));
+                        .for_each(|cause| eprintln!("caused by: {cause}"));
                     changed = true;
                     Lockfile::resolve_from_config(&cfg)?
                 }

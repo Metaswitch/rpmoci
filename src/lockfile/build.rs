@@ -142,7 +142,7 @@ impl Lockfile {
                             .context(format!("Failed to read file: {}", path.display()))?;
                         let checksum = format!("{:x}", hasher.finalize());
 
-                        eprintln!("Checksum: {}", checksum);
+                        eprintln!("Checksum: {checksum}");
 
                         if checksum != p.checksum.checksum {
                             bail!(
@@ -217,7 +217,7 @@ impl Lockfile {
             }
         }
         write::ok("Installing", "packages")?;
-        log::debug!("Running `{:?}`", dnf_install);
+        log::debug!("Running `{dnf_install:?}`");
         let status = dnf_install.status().context("Failed to run dnf")?;
         if !status.success() {
             bail!("failed to dnf install");
@@ -239,7 +239,7 @@ impl Lockfile {
                 rpm_erase.arg(pkg);
             }
             write::ok("Removing", "excluded packages")?;
-            log::debug!("Running `{:?}`", rpm_erase);
+            log::debug!("Running `{rpm_erase:?}`");
             let status = rpm_erase.status().context("Failed to run rpm")?;
             if !status.success() {
                 bail!("failed to rpm erase excluded packages");
@@ -272,7 +272,7 @@ fn creation_time() -> Result<DateTime<chrono::Utc>, anyhow::Error> {
     let creation_time = if let Ok(sde) = std::env::var("SOURCE_DATE_EPOCH") {
         let timestamp = sde
             .parse::<i64>()
-            .with_context(|| format!("Failed to parse SOURCE_DATE_EPOCH `{}`", sde))?;
+            .with_context(|| format!("Failed to parse SOURCE_DATE_EPOCH `{sde}`"))?;
         DateTime::from_timestamp(timestamp, 0)
             .ok_or_else(|| anyhow::anyhow!("SOURCE_DATE_EPOCH out of range: `{}`", sde))?
     } else {

@@ -22,7 +22,7 @@ fn main() {
         write::error("Error", err.to_string()).unwrap();
         err.chain()
             .skip(1)
-            .for_each(|cause| eprintln!("caused by: {}", cause));
+            .for_each(|cause| eprintln!("caused by: {cause}"));
         std::process::exit(1);
     }
 }

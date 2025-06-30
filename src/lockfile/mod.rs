@@ -194,14 +194,14 @@ impl Lockfile {
         for (name, evr) in old {
             if let Some(new_evr) = new.remove(name) {
                 if new_evr != evr {
-                    write::ok("Updating", format!("{} {} -> {}", name, evr, new_evr))?;
+                    write::ok("Updating", format!("{name} {evr} -> {new_evr}"))?;
                 }
             } else {
-                write::ok("Removing", format!("{} {}", name, evr))?;
+                write::ok("Removing", format!("{name} {evr}"))?;
             }
         }
         for (name, evr) in new {
-            write::ok("Adding", format!("{} {}", name, evr))?;
+            write::ok("Adding", format!("{name} {evr}"))?;
         }
 
         Ok(())

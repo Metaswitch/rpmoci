@@ -38,7 +38,7 @@ pub struct Cli {
 fn label_parser(s: &str) -> Result<(String, String), String> {
     match s.split_once('=') {
         Some((key, value)) => Ok((key.to_string(), value.to_string())),
-        None => Err(format!("`{}` should be of the form KEY=VALUE.", s)),
+        None => Err(format!("`{s}` should be of the form KEY=VALUE.")),
     }
 }
 
