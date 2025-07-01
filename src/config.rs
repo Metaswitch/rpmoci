@@ -176,7 +176,7 @@ impl ImageConfig {
             .entrypoint(entrypoint.clone())
             .env(
                 envs.iter()
-                    .map(|(k, v)| format!("{}={}", k, v))
+                    .map(|(k, v)| format!("{k}={v}"))
                     .collect::<Vec<_>>(),
             )
             .exposed_ports(exposed_ports.clone())

@@ -50,6 +50,7 @@ impl Lockfile {
                     (
                         p.name.clone(),
                         p.evr.clone(),
+                        p.checksum.algorithm.to_string(),
                         p.checksum.checksum.clone(),
                         p.arch.clone().unwrap_or_default(),
                     )
@@ -84,7 +85,7 @@ impl Lockfile {
         for (repoid, repo_key_info) in &self.repo_gpg_config {
             if repo_key_info.gpgcheck {
                 for (i, key) in repo_key_info.keys.iter().enumerate() {
-                    load_key(&tmp_dir, &format!("{}-{}", repoid, i), key)?;
+                    load_key(&tmp_dir, &format!("{repoid}-{i}"), key)?;
                 }
             }
         }

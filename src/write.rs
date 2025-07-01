@@ -21,9 +21,9 @@ use termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
 fn msg(label: &str, message: impl Display, color: &ColorSpec) -> io::Result<()> {
     let mut stderr = StandardStream::stderr(ColorChoice::Auto);
     stderr.set_color(color)?;
-    write!(&mut stderr, "{:>20} ", label)?;
+    write!(&mut stderr, "{label:>20} ")?;
     stderr.set_color(ColorSpec::new().set_fg(None))?;
-    writeln!(&mut stderr, "{}", message)?;
+    writeln!(&mut stderr, "{message}")?;
     Ok(())
 }
 

@@ -67,7 +67,7 @@ fn test_incompatible_lockfile() {
         .unwrap();
     assert!(!output.status.success());
     let stderr = std::str::from_utf8(&output.stderr).unwrap();
-    eprintln!("stderr: {}", stderr);
+    eprintln!("stderr: {stderr}");
     assert!(stderr.contains("needs to be updated but --locked was passed to prevent this"));
 
     // Updating should succeed
@@ -86,7 +86,7 @@ fn test_updatable_lockfile() {
         .unwrap();
     assert!(output.status.success());
     let stderr = std::str::from_utf8(&output.stderr).unwrap();
-    eprintln!("stderr: {}", stderr);
+    eprintln!("stderr: {stderr}");
     assert!(stderr.contains("Updating etcd 3.5.1-1.cm2 -> "));
     assert!(stderr.contains("Updating filesystem 1.1-9.cm2 ->"));
     assert!(stderr.contains("Updating glibc 2.35-1.cm2 -> "));
@@ -106,7 +106,7 @@ fn test_unparseable_lockfile() {
         .unwrap();
     let stderr = std::str::from_utf8(&output.stderr).unwrap();
     assert!(!output.status.success());
-    eprintln!("stderr: {}", stderr);
+    eprintln!("stderr: {stderr}");
     assert!(stderr.contains("failed to parse existing lock file"));
 
     // but we should be able to update it
@@ -117,7 +117,7 @@ fn test_unparseable_lockfile() {
         .output()
         .unwrap();
     let stderr = std::str::from_utf8(&output.stderr).unwrap();
-    eprintln!("stderr: {}", stderr);
+    eprintln!("stderr: {stderr}");
     assert!(output.status.success());
     assert!(stderr.contains("Adding tini-static "));
 }
@@ -135,7 +135,7 @@ fn test_no_lockfile() {
         .unwrap();
     assert!(!output.status.success());
     let stderr = std::str::from_utf8(&output.stderr).unwrap();
-    eprintln!("stderr: {}", stderr);
+    eprintln!("stderr: {stderr}");
     assert!(
         stderr.contains("is missing and needs to be generated but --locked was passed to prevent ")
     );
@@ -152,7 +152,7 @@ fn test_update_from_lockfile() {
         .output()
         .unwrap();
     let stderr = std::str::from_utf8(&output.stderr).unwrap();
-    eprintln!("stderr: {}", stderr);
+    eprintln!("stderr: {stderr}");
     assert!(output.status.success());
     assert!(stderr.contains("Updating dnf 4.8.0-1.cm2 -> "));
 }
@@ -173,7 +173,7 @@ fn test_simple_build() {
         .output()
         .unwrap();
     let stderr = std::str::from_utf8(&output1.stderr).unwrap();
-    eprintln!("stderr: {}", stderr);
+    eprintln!("stderr: {stderr}");
     assert!(output1.status.success());
 
     // Open the lockfile and verify /etc/os-release was included as a dependency
@@ -187,7 +187,7 @@ fn test_simple_build() {
     );
 
     let stderr = std::str::from_utf8(&output1.stderr).unwrap();
-    eprintln!("stderr: {}", stderr);
+    eprintln!("stderr: {stderr}");
     assert!(output1.status.success());
 
     // Repeat the build, to ensure reproducing the same image works
@@ -202,7 +202,7 @@ fn test_simple_build() {
         .output()
         .unwrap();
     let stderr = std::str::from_utf8(&output2.stderr).unwrap();
-    eprintln!("stderr: {}", stderr);
+    eprintln!("stderr: {stderr}");
     assert!(output2.status.success());
 
     let index = ImageIndex::from_file(root.join("foo").join("index.json")).unwrap();
@@ -230,7 +230,7 @@ fn test_vendor() {
         .output()
         .unwrap();
     let stderr = std::str::from_utf8(&output.stderr).unwrap();
-    eprintln!("stderr: {}", stderr);
+    eprintln!("stderr: {stderr}");
     assert!(output.status.success());
 
     let status = rpmoci()
@@ -340,7 +340,7 @@ fn test_base_arch() {
 fn test_capabilities() {
     let output = build_and_run("capabilities", true);
     let stderr = std::str::from_utf8(&output.stderr).unwrap();
-    eprintln!("stderr: {}", stderr);
+    eprintln!("stderr: {stderr}");
     assert!(
         std::str::from_utf8(&output.stdout)
             .unwrap()
@@ -355,7 +355,7 @@ fn test_hardlinks() {
     // This test checks that /usr/bin/ld has a hardlink, i.e that rpmoci hasn't copied the file
     let output = build_and_run("hardlinks", true);
     let stderr = std::str::from_utf8(&output.stderr).unwrap();
-    eprintln!("stderr: {}", stderr);
+    eprintln!("stderr: {stderr}");
     assert_eq!(std::str::from_utf8(&output.stdout).unwrap().trim(), "2");
 
     // Test we can push the image to a registry
@@ -399,11 +399,11 @@ fn build_and_run(image: &str, should_succeed: bool) -> std::process::Output {
     copy_to_docker(image, &root);
     let output = Command::new("docker")
         .arg("run")
-        .arg(format!("{}:test", image))
+        .arg(format!("{image}:test"))
         .output()
         .expect("failed to run container");
     let stderr = std::str::from_utf8(&output.stderr).unwrap();
-    eprintln!("stderr: {}", stderr);
+    eprintln!("stderr: {stderr}");
     if should_succeed {
         assert!(output.status.success());
     } else {
@@ -415,8 +415,8 @@ fn build_and_run(image: &str, should_succeed: bool) -> std::process::Output {
 fn copy_to_docker(image: &str, root: impl AsRef<Path>) {
     let status = Command::new("skopeo")
         .arg("copy")
-        .arg(format!("oci:{}:test", image))
-        .arg(format!("docker-daemon:{}:test", image))
+        .arg(format!("oci:{image}:test"))
+        .arg(format!("docker-daemon:{image}:test"))
         .current_dir(root.as_ref())
         .status()
         .expect("failed to run skopeo");
