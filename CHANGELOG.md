@@ -2,6 +2,10 @@
 ### Breaking Changes
 ### Added
 ### Fixed
+
+## 0.4.4 - 2025-07-01
+
+### Fixed
 - Make GPG config be consistently ordered in lockfile.
 - Remove debug print statement.
 - Handle case where RPMs have a different checksum algorithm than expected when they're being downloaded, while still verifying the checksum.
