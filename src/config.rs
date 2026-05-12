@@ -120,10 +120,10 @@ impl Repository {
         }
 
         // If the repository is a definition, and has an id, return that
-        if let Repository::Definition(repo) = &self {
-            if let Some(repoid) = &repo.id {
-                return repoid.to_string();
-            }
+        if let Repository::Definition(repo) = &self
+            && let Some(repoid) = &repo.id
+        {
+            return repoid.to_string();
         }
 
         // The repository didn't have an id, so generate one from the url
