@@ -21,8 +21,8 @@ use anyhow::{Context, Result, bail};
 use chrono::DateTime;
 use flate2::Compression;
 use glob::glob;
+use ocidir::OciDir;
 use ocidir::oci_spec::image::MediaType;
-use ocidir::{OciDir, new_empty_manifest};
 use rusqlite::Connection;
 use sha2::Digest;
 use tempfile::TempDir;
@@ -50,7 +50,7 @@ impl Lockfile {
             .context(format!("Failed to create OCI image directory `{}`", &image))?;
         let dir = Dir::open_ambient_dir(image, ocidir::cap_std::ambient_authority())
             .context("Failed to open image directory")?;
-        let oci_dir = OciDir::ensure(&dir)?;
+        let oci_dir = OciDir::ensure(dir)?;
 
         let creation_time = creation_time()?;
         let installroot = TempDir::new()?; // This needs to outlive the layer builder below.
@@ -88,7 +88,8 @@ impl Lockfile {
             .image
             .to_oci_image_configuration(labels, creation_time)?;
         // Create the image manifest
-        let mut manifest = new_empty_manifest()
+        let mut manifest = oci_dir
+            .new_empty_manifest()?
             .media_type(MediaType::ImageManifest)
             .build()?;
         oci_dir.push_layer_full(
@@ -138,9 +139,21 @@ impl Lockfile {
                         let mut hasher = sha2::Sha256::new();
                         let mut file = fs::File::open(&path)
                             .context(format!("Failed to open file: {}", path.display()))?;
-                        std::io::copy(&mut file, &mut hasher)
-                            .context(format!("Failed to read file: {}", path.display()))?;
-                        let checksum = format!("{:x}", hasher.finalize());
+                        let mut buf = [0u8; 8192];
+                        loop {
+                            use std::io::Read;
+                            let n = file
+                                .read(&mut buf)
+                                .context(format!("Failed to read file: {}", path.display()))?;
+                            if n == 0 {
+                                break;
+                            }
+                            sha2::Digest::update(&mut hasher, &buf[..n]);
+                        }
+                        let checksum: String = sha2::Digest::finalize(hasher)
+                            .iter()
+                            .map(|b| format!("{b:02x}"))
+                            .collect();
 
                         eprintln!("Checksum: {checksum}");
 

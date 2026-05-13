@@ -39,7 +39,7 @@ impl Lockfile {
         gpgkeys: Vec<Url>,
         include_etc_os_release: bool,
     ) -> Result<Self> {
-        let output = Python::with_gil(|py| {
+        let output = Python::try_attach(|py| {
             // Resolve is a compiled in python module for resolving dependencies
             let resolve = PyModule::from_code(
                 py,
@@ -64,7 +64,7 @@ impl Lockfile {
         })
         .context("Failed to resolve dependencies with dnf")?;
 
-        let results: DnfOutput = serde_json::from_str(&output)?;
+        let results: DnfOutput = serde_json::from_str(&output?)?;
         Ok(Lockfile {
             pkg_specs,
             packages: results.packages.into_iter().collect(),
@@ -109,7 +109,7 @@ impl Lockfile {
             .flatten()
             .collect::<Vec<PathBuf>>();
 
-        let output = Python::with_gil(|py| {
+        let output = Python::try_attach(|py| {
             // query_local is a compiled in python module for querying local dependencies
             let query = PyModule::from_code(
                 py,
@@ -125,7 +125,7 @@ impl Lockfile {
         })
         .context("Failed to resolve dependencies with dnf")?;
 
-        let results: BTreeSet<String> = serde_json::from_str(&output)?;
+        let results: BTreeSet<String> = serde_json::from_str(&output?)?;
         Ok(results)
     }
 

@@ -34,7 +34,7 @@ impl Lockfile {
     pub fn download_rpms(&self, cfg: &Config, dir: &Path) -> Result<()> {
         let repositories = &cfg.contents.repositories;
 
-        Python::with_gil(|py| {
+        Python::try_attach(|py| {
             let base = setup_base(py, repositories, &cfg.contents.gpgkeys)?;
             let download = PyModule::from_code(
                 py,
@@ -69,7 +69,7 @@ impl Lockfile {
             download.getattr("download")?.call1(args)?;
             Ok::<_, anyhow::Error>(())
         })
-        .context("Failed to download dependencies with dnf")
+        .context("Failed to download dependencies with dnf")?
     }
 
     /// Check GPG keys of downloaded packages against the GPG keys stored in the lockfile
