@@ -161,13 +161,18 @@ pub fn main(command: Command) -> anyhow::Result<()> {
                 lockfile.write_to_file(lockfile_path)?;
             }
 
-            lockfile.build(
-                &cfg,
-                &image,
-                &tag,
-                vendor_dir.as_deref(),
-                label.into_iter().collect(),
-            )?;
+            lockfile
+                .build(
+                    &cfg,
+                    &image,
+                    &tag,
+                    vendor_dir.as_deref(),
+                    label.into_iter().collect(),
+                )
+                .context(
+                    "If packages in the lock file are no longer available in the configured \
+                     repositories, run `rpmoci update` to regenerate it",
+                )?;
             let elapsed_time = now.elapsed();
             write::ok(
                 "Success",
