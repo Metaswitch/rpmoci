@@ -1,0 +1,10 @@
+[contents]
+packages = ["glibc"]
+
+[[contents.repositories]]
+url = "https://cdn-ubi.redhat.com/content/public/ubi/dist/ubi9/9/$basearch/baseos/os"
+id = "ubi9-test"
+options = { gpgcheck = "false" }
+
+[image]
+cmd = ["/bin/bash"]

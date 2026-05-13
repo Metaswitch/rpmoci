@@ -385,6 +385,12 @@ fn test_exclude() {
     build_and_run("exclude", false);
 }
 
+#[cfg(feature = "test-docker")]
+#[test]
+fn test_auto_update_missing_package() {
+    build_and_run("ubi9", true);
+}
+
 fn build_and_run(image: &str, should_succeed: bool) -> std::process::Output {
     let (_tmp_dir, root) = setup_test(image);
     let status = rpmoci()

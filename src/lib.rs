@@ -158,21 +158,45 @@ pub fn main(command: Command) -> anyhow::Result<()> {
             };
 
             if changed {
-                lockfile.write_to_file(lockfile_path)?;
+                lockfile.write_to_file(&lockfile_path)?;
             }
 
-            lockfile
+            match lockfile
                 .build(
                     &cfg,
                     &image,
                     &tag,
                     vendor_dir.as_deref(),
-                    label.into_iter().collect(),
+                    label.clone().into_iter().collect(),
                 )
                 .context(
                     "If packages in the lock file are no longer available in the configured \
                      repositories, run `rpmoci update` to regenerate it",
-                )?;
+                ) {
+                Ok(()) => (),
+                Err(e) => {
+                    // running unlocked with a compatible lockfile: packages may have been
+                    // removed from the rolling repo, so attempt an auto-update and retry.
+                    if lockfile.is_compatible_including_local_rpms(&cfg)? && !locked {
+                        log::debug!(
+                            "Build failed with a compatible lockfile, attempting auto-update and rebuild."
+                        );
+                        let lockfile = Lockfile::resolve_from_config(&cfg)?;
+                        lockfile.write_to_file(&lockfile_path)?;
+                        lockfile.build(
+                            &cfg,
+                            &image,
+                            &tag,
+                            vendor_dir.as_deref(),
+                            label.into_iter().collect(),
+                        )?;
+                    } else {
+                        // locked or lockfile no longer matches config – bail with the
+                        // hint already included in the error context.
+                        bail!("Failed to build image: {e}.");
+                    }
+                }
+            };
             let elapsed_time = now.elapsed();
             write::ok(
                 "Success",
