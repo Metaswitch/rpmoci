@@ -51,13 +51,15 @@ jobs:
     steps:
       - name: Install dependencies
         run: |
-          dnf install -y openssl-devel python3-devel sqlite-devel dnf-plugins-core util-linux rust cargo skopeo
+          dnf install -y openssl-devel python3-devel sqlite-devel dnf-plugins-core util-linux skopeo
           dnf config-manager --add-repo https://download.docker.com/linux/fedora/docker-ce.repo
           dnf install -y docker-ce-cli
       - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
       - name: Run tests
         shell: bash
         run: |
+          source "$HOME/.cargo/env"
           useradd -m -s /bin/bash rootless
           su - rootless
           cargo test --features test-docker

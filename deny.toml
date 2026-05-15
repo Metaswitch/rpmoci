@@ -14,3 +14,8 @@ allow = [
     "Zlib"
 ]
 confidence-threshold = 1.0
+
+[[licenses.exceptions]]
+# rpmoci itself is GPL-3.0-or-later; the global policy only allows GPL-3.0
+allow = ["GPL-3.0-or-later"]
+name = "rpmoci"
