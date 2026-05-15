@@ -119,18 +119,10 @@ impl Lockfile {
             let path = file?.path();
             if path.extension() == Some(OsStr::new("rpm")) {
                 let pkg = rpm::Package::open(&path).map_err(|e| {
-                    anyhow::anyhow!(
-                        "Failed to open RPM package {}: {}",
-                        path.display(),
-                        e.to_string()
-                    )
+                    anyhow::anyhow!("Failed to open RPM package {}: {}", path.display(), e)
                 })?;
                 if gpgcheck_pkg_names.contains(pkg.metadata.get_name().map_err(|e| {
-                    anyhow::anyhow!(
-                        "Failed to get RPM name {}: {}",
-                        path.display(),
-                        e.to_string()
-                    )
+                    anyhow::anyhow!("Failed to get RPM name {}: {}", path.display(), e)
                 })?) {
                     check_pkg_signature(&path, tmp_dir.path())?;
                 }
