@@ -56,6 +56,17 @@ pub enum Command {
         /// local RPMs being present, which may be useful in dependency updating scenarios.
         #[clap(long = "from-lockfile")]
         from_lockfile: bool,
+        /// Update only the specified package(s), by name. All other packages in the
+        /// lock file remain pinned to their current versions. Requires an existing,
+        /// up-to-date lock file. May be specified multiple times.
+        ///
+        /// A package may fail to update if another (still-pinned) package has a
+        /// strict version-lock on it - for example RPMs built from the same source
+        /// often require each other at the exact same version (e.g. `glibc`,
+        /// `glibc-common`, `glibc-langpack-en`). In that case, pass all the
+        /// related packages together: `-p glibc -p glibc-common ...`.
+        #[clap(short = 'p', long = "package", conflicts_with = "from_lockfile")]
+        package: Vec<String>,
     },
     /// Build an OCI image
     Build {

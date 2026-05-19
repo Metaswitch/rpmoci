@@ -18,7 +18,7 @@ rpmoci is also similar to a smaller [`rpm-ostree compose image`](https://coreos.
 
 rpmoci has a runtime dependency on dnf, so requires a Linux distribution with dnf support.
 
-rpmoci is available to download from crates.io, so you'll need a Rust toolchain. You also need to install the sqlite, python3 and openssl development packages (e.g `sqlite-devel`, `python3-devel` and `openssl-devel` on Fedora and RHEL derivatives). 
+rpmoci is available to download from crates.io, so you'll need a Rust toolchain. You also need to install the sqlite, python3 and openssl development packages (e.g `sqlite-devel`, `python3-devel` and `openssl-devel` on Fedora and RHEL derivatives).
 
 Then install rpmoci via cargo:
 ```bash
@@ -26,7 +26,7 @@ cargo install rpmoci
 ```
 
 ## Building
-Per the above, you'll need dnf, Rust, python3-devel and openssl-devel installed.
+Per the above, you'll need dnf, Rust, `sqlite-devel`, `python3-devel`, and `openssl-devel` installed.
 
 ```bash
 cargo build
@@ -260,7 +260,7 @@ Adding bzip2-libs 1.0.8-1.cm2
 rpmoci can produce bitwise reproducible container image builds, assuming that the RPMs can be reproducibly installed (an rpmoci build won't be reproducible if it involves RPMs that have unreproducible post-install scripts for example).
 rpmoci attempts to remove sources of non-determinism from the container image, and respects the [SOURCE_DATE_EPOCH](https://reproducible-builds.org/docs/source-date-epoch/) environment variable.
 
-When SOURCE_DATE_EPOCH is not set, the image creation time in the OCI image config is set to the current time. In this scenario rpmoci still removes non-deteministic data from the image, and the build can later be reproduced by setting SOURCE_DATE_EPOCH to the creation time of the image (by converting the timestamp in the image config to seconds since unix epoch). 
+When SOURCE_DATE_EPOCH is not set, the image creation time in the OCI image config is set to the current time. In this scenario rpmoci still removes non-deteministic data from the image, and the build can later be reproduced by setting SOURCE_DATE_EPOCH to the creation time of the image (by converting the timestamp in the image config to seconds since unix epoch).
 
 This feature is only been tested on Mariner Linux, but should work when rpmoci is run on any Linux distribution that writes the rpmdb as a sqlite database to `/var/lib/rpm/rpmdb.sqlite`.
 
@@ -302,5 +302,5 @@ cargo generate-rpm
 The tests are run via `cargo test`. The integration tests in `tests/it.rs` run `rpmoci build`,
 so must be run either as root, or with user namespace support setup.
 
-The tests use [test-temp-dir](https://docs.rs/crate/test-temp-dir/latest), so you can set 
+The tests use [test-temp-dir](https://docs.rs/crate/test-temp-dir/latest), so you can set
 the `TEST_TEMP_RETAIN` environment variable to `1` so that the test directories are kept around for debugging in `<CARGO_TARGET_DIR>/tests`.

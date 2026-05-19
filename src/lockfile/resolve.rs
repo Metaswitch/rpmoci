@@ -157,6 +157,142 @@ impl Lockfile {
         lockfile.pkg_specs.clone_from(&cfg.contents.packages);
         Ok(lockfile)
     }
+
+    /// Create a lockfile by re-resolving, but pinning every currently locked
+    /// package to its exact NEVRA *except* those whose names appear in
+    /// `update`. This is the analogue of `cargo update -p <pkg>`.
+    pub fn resolve_updating(&self, cfg: &Config, update: &[String]) -> Result<Self> {
+        let specs = self.build_update_specs(cfg, update)?;
+
+        let mut lockfile = Self::resolve(
+            specs,
+            &cfg.contents.repositories,
+            cfg.contents.gpgkeys.clone(),
+            cfg.contents.os_release,
+        )?;
+
+        // For any package whose (name, evr, arch) is unchanged, re-use the
+        // entry from the previous lockfile verbatim. This prevents spurious
+        // repoid/checksum churn when the same NEVRA is available from
+        // multiple repositories (hawkey may tie-break differently between
+        // runs when given a NEVRA pin spec).
+        let old_by_key: std::collections::HashMap<_, _> = self
+            .packages
+            .iter()
+            .map(|p| ((p.name.as_str(), p.evr.as_str(), p.arch.as_deref()), p))
+            .collect();
+        lockfile.packages = lockfile
+            .packages
+            .into_iter()
+            .map(|pkg| {
+                let key = (pkg.name.as_str(), pkg.evr.as_str(), pkg.arch.as_deref());
+                match old_by_key.get(&key) {
+                    Some(old) => (*old).clone(),
+                    None => pkg,
+                }
+            })
+            .collect();
+
+        // Merge the previous repo_gpg_config into the new one, preferring
+        // the previous entries (which correspond to the preserved packages),
+        // then keep only entries for repos actually referenced by the final
+        // package set.
+        let referenced_repos: std::collections::BTreeSet<&str> = lockfile
+            .packages
+            .iter()
+            .map(|p| p.repoid.as_str())
+            .collect();
+        for (repo, info) in &self.repo_gpg_config {
+            lockfile
+                .repo_gpg_config
+                .entry(repo.clone())
+                .or_insert_with(|| info.clone());
+        }
+        lockfile
+            .repo_gpg_config
+            .retain(|k, _| referenced_repos.contains(k.as_str()));
+
+        // Preserve the original local packages and manifest-visible pkg_specs
+        // so the lockfile's compatibility check still passes.
+        lockfile.local_packages.clone_from(&self.local_packages);
+        lockfile.pkg_specs.clone_from(&cfg.contents.packages);
+        Ok(lockfile)
+    }
+
+    /// Validate a `--package` request and construct the spec list that
+    /// should be passed to dnf. Extracted for unit testing.
+    fn build_update_specs(&self, cfg: &Config, update: &[String]) -> Result<Vec<String>> {
+        use std::collections::HashSet;
+
+        // Reject requests to "update" a local RPM - those aren't version-resolved.
+        let local_names: HashSet<&str> =
+            self.local_packages.iter().map(|p| p.name.as_str()).collect();
+        for name in update {
+            if local_names.contains(name.as_str()) {
+                anyhow::bail!(
+                    "`{name}` is a local RPM and cannot be updated via --package"
+                );
+            }
+        }
+
+        // Validate every requested name actually exists in the lock file.
+        let locked_names: HashSet<&str> =
+            self.packages.iter().map(|p| p.name.as_str()).collect();
+        for name in update {
+            if !locked_names.contains(name.as_str()) {
+                anyhow::bail!("package `{name}` is not in the lock file");
+            }
+        }
+
+        let update: HashSet<&str> = update.iter().map(String::as_str).collect();
+
+        // Names of packages we are pinning (everything in the lockfile except
+        // the ones being updated). Loose top-level specs for these names must
+        // be dropped or DNF sees a conflict between the pin and the loose
+        // spec (e.g. "libpq" resolving to latest vs "libpq-13.20" pinned).
+        let pinned_names: HashSet<&str> = self
+            .packages
+            .iter()
+            .map(|p| p.name.as_str())
+            .filter(|n| !update.contains(n))
+            .collect();
+
+        // Top-level specs from the manifest (skip local `.rpm` globs; their
+        // dependencies come from `local_packages.requires`, matching how
+        // `resolve_from_previous` handles them). Also skip any spec whose
+        // leading token matches a pinned package name.
+        let top_level = cfg
+            .contents
+            .packages
+            .iter()
+            .filter(|s| !s.ends_with(".rpm"))
+            .filter(|s| {
+                let name = s.split_whitespace().next().unwrap_or(s.as_str());
+                !pinned_names.contains(name)
+            })
+            .cloned();
+
+        // Requires from local RPMs (same filtering as resolve_from_previous).
+        let local_requires = self
+            .local_packages
+            .iter()
+            .flat_map(|pkg| pkg.requires.clone())
+            .filter(|r| !r.starts_with("rpmlib("));
+
+        // For every locked package NOT being updated, build a pin spec
+        // "name-evr.arch" (falling back to "name-evr" if the lockfile predates
+        // the arch field). dnf/hawkey treats these as exact-version installs.
+        let pins = self
+            .packages
+            .iter()
+            .filter(|pkg| !update.contains(pkg.name.as_str()))
+            .map(|pkg| match &pkg.arch {
+                Some(arch) => format!("{}-{}.{}", pkg.name, pkg.evr, arch),
+                None => format!("{}-{}", pkg.name, pkg.evr),
+            });
+
+        Ok(top_level.chain(local_requires).chain(pins).collect())
+    }
 }
 
 /// A wrapper around the dnf.Base object which ensures that plugins are unloaded
@@ -434,5 +570,160 @@ mod tests {
         )
         .unwrap();
         assert!(!lock.packages.iter().any(|p| p.name == "pcre2-doc"));
+    }
+
+    /// Fixture lockfile used by the --package unit tests below.
+    /// Contains three remote packages and one local RPM reference,
+    /// none of which require network access to parse.
+    fn fixture_lockfile() -> Lockfile {
+        let toml = r#"
+pkg_specs = ["libpq", "libzstd", "mcl", "./output/myapp-1.0.0.rpm"]
+
+[[packages]]
+name = "libpq"
+evr = "13.20-1.el9_5"
+repoid = "sas-rpms-escrow"
+arch = "x86_64"
+[packages.checksum]
+algorithm = "sha256"
+checksum = "aa"
+
+[[packages]]
+name = "libzstd"
+evr = "1.5.1-2.el9"
+repoid = "ubi-rpms-virtual"
+arch = "x86_64"
+[packages.checksum]
+algorithm = "sha256"
+checksum = "bb"
+
+[[packages]]
+name = "mcl"
+evr = "17.2.5-1.el9"
+repoid = "alianza"
+arch = "x86_64"
+[packages.checksum]
+algorithm = "sha256"
+checksum = "cc"
+
+[[local_packages]]
+name = "myapp"
+requires = ["libpq.so.5()(64bit)", "libzstd.so.1()(64bit)", "rpmlib(PayloadFilesHavePrefix)"]
+"#;
+        toml::from_str(toml).expect("fixture lockfile must parse")
+    }
+
+    fn fixture_config(packages: &[&str]) -> crate::config::Config {
+        let mut cfg = crate::config::Config::default();
+        cfg.contents.packages = packages.iter().map(|s| (*s).to_string()).collect();
+        cfg
+    }
+
+    #[test]
+    fn update_rejects_unknown_package() {
+        let lock = fixture_lockfile();
+        let cfg = fixture_config(&["libpq", "libzstd", "mcl"]);
+        let err = lock
+            .build_update_specs(&cfg, &["does-not-exist".to_string()])
+            .unwrap_err();
+        assert!(
+            err.to_string().contains("is not in the lock file"),
+            "unexpected error: {err}"
+        );
+    }
+
+    #[test]
+    fn update_rejects_local_rpm_name() {
+        let lock = fixture_lockfile();
+        let cfg = fixture_config(&["libpq", "libzstd", "mcl"]);
+        let err = lock
+            .build_update_specs(&cfg, &["myapp".to_string()])
+            .unwrap_err();
+        assert!(
+            err.to_string().contains("local RPM"),
+            "unexpected error: {err}"
+        );
+    }
+
+    #[test]
+    fn update_single_package_pins_others_and_leaves_target_loose() {
+        let lock = fixture_lockfile();
+        let cfg = fixture_config(&[
+            "libpq",
+            "libzstd",
+            "mcl",
+            "./output/myapp-1.0.0.rpm",
+        ]);
+        let specs = lock
+            .build_update_specs(&cfg, &["libzstd".to_string()])
+            .unwrap();
+
+        // The target's loose name must survive so it can float.
+        assert!(specs.contains(&"libzstd".to_string()));
+        // Loose top-level specs for pinned packages must be filtered out.
+        assert!(!specs.contains(&"libpq".to_string()));
+        assert!(!specs.contains(&"mcl".to_string()));
+        // Local .rpm globs are never passed through as top-level specs.
+        assert!(!specs.iter().any(|s| s.ends_with(".rpm")));
+        // Every non-updated locked package must appear as an exact NEVRA pin.
+        assert!(specs.contains(&"libpq-13.20-1.el9_5.x86_64".to_string()));
+        assert!(specs.contains(&"mcl-17.2.5-1.el9.x86_64".to_string()));
+        // The target must NOT be pinned.
+        assert!(!specs.iter().any(|s| s.starts_with("libzstd-1.5.1")));
+        // Local package soname requires propagate through.
+        assert!(specs.iter().any(|s| s == "libpq.so.5()(64bit)"));
+        // rpmlib() requirements are filtered out.
+        assert!(!specs.iter().any(|s| s.starts_with("rpmlib(")));
+    }
+
+    #[test]
+    fn update_multiple_packages_leaves_all_targets_loose() {
+        let lock = fixture_lockfile();
+        let cfg = fixture_config(&["libpq", "libzstd", "mcl"]);
+        let specs = lock
+            .build_update_specs(&cfg, &["libpq".to_string(), "mcl".to_string()])
+            .unwrap();
+
+        // Both targets stay loose.
+        assert!(specs.contains(&"libpq".to_string()));
+        assert!(specs.contains(&"mcl".to_string()));
+        // Neither target is pinned.
+        assert!(!specs.iter().any(|s| s.starts_with("libpq-13.20")));
+        assert!(!specs.iter().any(|s| s.starts_with("mcl-17.2.5")));
+        // The one non-target package is pinned and has no loose spec.
+        assert!(specs.contains(&"libzstd-1.5.1-2.el9.x86_64".to_string()));
+        let libzstd_loose_count = specs.iter().filter(|s| s.as_str() == "libzstd").count();
+        assert_eq!(libzstd_loose_count, 0);
+    }
+
+    #[test]
+    fn update_handles_missing_arch_in_old_lockfiles() {
+        // Older lockfiles lacked the arch field; the pin spec must still work.
+        let toml = r#"
+pkg_specs = ["foo"]
+
+[[packages]]
+name = "foo"
+evr = "1.0-1"
+repoid = "somerepo"
+[packages.checksum]
+algorithm = "sha256"
+checksum = "dd"
+
+[[packages]]
+name = "bar"
+evr = "2.0-1"
+repoid = "somerepo"
+[packages.checksum]
+algorithm = "sha256"
+checksum = "ee"
+"#;
+        let lock: Lockfile = toml::from_str(toml).unwrap();
+        let cfg = fixture_config(&["foo", "bar"]);
+        let specs = lock
+            .build_update_specs(&cfg, &["foo".to_string()])
+            .unwrap();
+        // bar must be pinned without an arch suffix.
+        assert!(specs.contains(&"bar-2.0-1".to_string()));
     }
 }
