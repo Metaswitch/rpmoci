@@ -873,9 +873,6 @@ def check(resolve):
         });
     }
 
-    use pyo3::ffi::c_str;
-    use pyo3::prelude::*;
-
     #[test]
     fn test_weak_deps() {
         // prce2-tools in mariner recommends pcre2-docs. use this to test weak dep behaviour
