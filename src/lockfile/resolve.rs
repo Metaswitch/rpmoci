@@ -402,7 +402,7 @@ fn repo_password(repo_id: &str) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
-    use std::{collections::HashMap, str::FromStr};
+    use std::{collections::HashMap, str::FromStr, sync::Mutex};
 
     use pyo3::ffi::c_str;
     use pyo3::prelude::*;
@@ -416,7 +416,10 @@ mod tests {
     /// Run `check` (a Python function taking the resolve module) against the real resolve.py.
     /// hawkey packages can't be constructed standalone, so the checks use stand-in objects
     /// exposing the attributes `deduplicate_packages` reads.
+    static DEDUP_TEST_LOCK: Mutex<()> = Mutex::new(());
+
     fn run_dedup_check(check: &str) -> PyResult<()> {
+        let _guard = DEDUP_TEST_LOCK.lock().unwrap();
         Python::with_gil(|py| {
             let resolve = PyModule::from_code(
                 py,
@@ -699,6 +702,7 @@ def failure_before_goal(resolve):
     /// Reproduce a virtual repo exposing `foo-1.0-1.x86_64` twice (upstream + archive members)
     /// using real DNF/hawkey loaded from local repo metadata, then run `resolve`.
     fn resolve_virtual_repo_duplicates(second_digest: &str) -> PyResult<String> {
+        let _guard = DEDUP_TEST_LOCK.lock().unwrap();
         Python::with_gil(|py| {
             let resolve = PyModule::from_code(
                 py,
@@ -821,6 +825,7 @@ def run(resolve, second_digest):
 
     #[test]
     fn test_dedup_solver_errors_are_not_caught() {
+        let _guard = DEDUP_TEST_LOCK.lock().unwrap();
         Python::with_gil(|py| {
             let resolve = PyModule::from_code(
                 py,
