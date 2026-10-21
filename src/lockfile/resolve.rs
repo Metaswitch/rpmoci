@@ -493,6 +493,7 @@ def identical(resolve):
     assert base.calls == [], "matching strong checksums should not download"
 
 
+# SHA-1 and SHA-256 advertisements need byte comparison before deduplication.
 def cross_algorithm_identical(resolve):
     repo = Repo()
     sha1 = pkg(algo=hawkey.CHKSUM_SHA1, digest=b"\x01" * 20,
@@ -515,6 +516,7 @@ def matching_sha256_preferred(resolve):
     assert len(base.calls) == 2
 
 
+# A SHA-1-only package still needs a calculated digest in the lockfile.
 def sha1_checksum_serialized_as_sha256(resolve):
     repo = Repo()
     sha1 = pkg(algo=hawkey.CHKSUM_SHA1, digest=b"\x01" * 20,

@@ -30,6 +30,7 @@ def deduplicate_packages(base, packages):
     groups = {}
     ordered = []
     for pkg in packages:
+        # Keep local RPMs out of repository candidate groups.
         if pkg.repoid == hawkey.CMDLINE_REPO_NAME:
             ordered.append([pkg])
             continue
@@ -48,6 +49,7 @@ def deduplicate_packages(base, packages):
             unique.append(group[0])
             continue
 
+        # Matching strong checksums prove identity without downloading RPMs.
         checksums = [_strong_checksum_identity(pkg.chksum) for pkg in group]
         representative = min(
             group,
@@ -68,6 +70,7 @@ def deduplicate_packages(base, packages):
                     _candidate_error(group, "candidates share a cached RPM path in cache-only mode")
                 )
 
+        # Weak or mixed checksums are verified by comparing downloaded RPM bytes.
         sha256s = []
         for pkg in group:
             try:
@@ -196,6 +199,7 @@ def resolve(base, packages):
         raise dnf.exceptions.DepsolveError(msg)
 
     resolved_pkgs = goal.list_installs()
+    # DNF may return another candidate from a virtual repo; use its preferred checksum metadata.
     repo_gpg_info = {}
     # Collect GPG keys for this repository
     for pkg in resolved_pkgs:
