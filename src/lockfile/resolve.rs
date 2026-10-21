@@ -39,7 +39,7 @@ impl Lockfile {
         gpgkeys: Vec<Url>,
         include_etc_os_release: bool,
     ) -> Result<Self> {
-        let output = Python::with_gil(|py| {
+        let output = Python::attach(|py| {
             // Resolve is a compiled in python module for resolving dependencies
             let resolve = PyModule::from_code(
                 py,
@@ -109,7 +109,7 @@ impl Lockfile {
             .flatten()
             .collect::<Vec<PathBuf>>();
 
-        let output = Python::with_gil(|py| {
+        let output = Python::attach(|py| {
             // query_local is a compiled in python module for querying local dependencies
             let query = PyModule::from_code(
                 py,

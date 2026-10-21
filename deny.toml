@@ -9,8 +9,14 @@ allow = [
     "Apache-2.0 WITH LLVM-exception",
     "Unicode-DFS-2016",
     "GPL-3.0",
+    "GPL-3.0-or-later",
     "BSD-3-Clause",
     "Unicode-3.0",
     "Zlib"
 ]
 confidence-threshold = 1.0
+
+[[licenses.exceptions]]
+# rpmoci itself is GPL-3.0-or-later; the global policy only allows GPL-3.0
+allow = ["GPL-3.0-or-later"]
+name = "rpmoci"
