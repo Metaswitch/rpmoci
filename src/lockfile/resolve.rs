@@ -420,7 +420,7 @@ mod tests {
 
     fn run_dedup_check(check: &str) -> PyResult<()> {
         let _guard = DEDUP_TEST_LOCK.lock().unwrap();
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let resolve = PyModule::from_code(
                 py,
                 c_str!(include_str!("resolve.py")),
@@ -749,7 +749,7 @@ def failure_before_goal(resolve):
     /// using real DNF/hawkey loaded from local repo metadata, then run `resolve`.
     fn resolve_virtual_repo_duplicates(second_digest: &str) -> PyResult<String> {
         let _guard = DEDUP_TEST_LOCK.lock().unwrap();
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let resolve = PyModule::from_code(
                 py,
                 c_str!(include_str!("resolve.py")),
@@ -872,7 +872,7 @@ def run(resolve, second_digest):
     #[test]
     fn test_dedup_solver_errors_are_not_caught() {
         let _guard = DEDUP_TEST_LOCK.lock().unwrap();
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let resolve = PyModule::from_code(
                 py,
                 c_str!(include_str!("resolve.py")),
