@@ -402,14 +402,529 @@ fn repo_password(repo_id: &str) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
-    use std::{collections::HashMap, str::FromStr};
+    use std::{collections::HashMap, str::FromStr, sync::Mutex};
 
+    use pyo3::ffi::c_str;
+    use pyo3::prelude::*;
     use url::Url;
 
     use crate::{
         config::{Repository, RepositoryDefinition},
         lockfile::Lockfile,
     };
+
+    /// Run `check` (a Python function taking the resolve module) against the real resolve.py.
+    /// hawkey packages can't be constructed standalone, so the checks use stand-in objects
+    /// exposing the attributes `deduplicate_packages` reads.
+    static DEDUP_TEST_LOCK: Mutex<()> = Mutex::new(());
+
+    fn run_dedup_check(check: &str) -> PyResult<()> {
+        let _guard = DEDUP_TEST_LOCK.lock().unwrap();
+        Python::attach(|py| {
+            let resolve = PyModule::from_code(
+                py,
+                c_str!(include_str!("resolve.py")),
+                c_str!("resolve"),
+                c_str!("resolve"),
+            )?;
+            let helpers = PyModule::from_code(
+                py,
+                c_str!(
+                    r#"
+from pathlib import Path
+from types import SimpleNamespace
+import tempfile
+import dnf
+import hawkey
+
+
+class Repo:
+    def __init__(self):
+        self.pkgdir = str(Path(tempfile.gettempdir()) / "rpmoci-dedup-cache")
+        self.gpgcheck = False
+        self.gpgkey = []
+
+
+def pkg(name="foo", epoch=0, version="1.0", release="1", arch="x86_64",
+        repoid="virtual", algo=hawkey.CHKSUM_SHA256, digest=b"\x01" * 32,
+        location="foo.rpm", data=b"rpm bytes", repo=None):
+    repo = repo or Repo()
+    package = SimpleNamespace(
+        name=name, epoch=epoch, version=version, release=release,
+        arch=arch, repoid=repoid, chksum=(algo, digest), repo=repo,
+        location=location, data=data,
+    )
+    package.evr = f"{epoch}:{version}-{release}"
+    package.localPkg = lambda: str(Path(package.repo.pkgdir) / Path(package.location).name)
+    return package
+
+
+class Base:
+    sack = object()
+
+    def __init__(self, fail=False, cacheonly=False):
+        self.calls = []
+        self.fail = fail
+        self.conf = SimpleNamespace(cacheonly=cacheonly)
+
+    def download_packages(self, packages):
+        for package in packages:
+            self.calls.append((package, package.repo.pkgdir))
+            if self.fail:
+                raise OSError("offline download failure")
+            path = Path(package.localPkg())
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(package.data)
+
+
+def raises(resolve, pkgs, base=None):
+    try:
+        resolve.deduplicate_packages(base if base is not None else Base(), pkgs)
+    except dnf.exceptions.Error as e:
+        return str(e)
+    raise AssertionError("expected a DNF error")
+
+
+def identical(resolve):
+    a = pkg(location="z/foo.rpm")
+    b = pkg(location="a/foo.rpm")
+    base = Base()
+    assert resolve.deduplicate_packages(base, [a, b]) == [b]
+    assert base.calls == [], "matching strong checksums should not download"
+
+
+# SHA-1 and SHA-256 advertisements need byte comparison before deduplication.
+def cross_algorithm_identical(resolve):
+    repo = Repo()
+    sha1 = pkg(algo=hawkey.CHKSUM_SHA1, digest=b"\x01" * 20,
+               location="upstream/foo.rpm", repo=repo)
+    sha256 = pkg(algo=hawkey.CHKSUM_SHA256, location="z-archive/foo.rpm", repo=repo)
+    base = Base()
+    assert resolve.deduplicate_packages(base, [sha1, sha256]) == [sha256]
+    assert len(base.calls) == 2
+    assert base.calls[0][1] != base.calls[1][1], "same-basename downloads collided"
+    assert sha1.repo.pkgdir == sha256.repo.pkgdir == str(Path(tempfile.gettempdir()) / "rpmoci-dedup-cache")
+
+
+def matching_sha256_preferred(resolve):
+    repo = Repo()
+    sha1 = pkg(algo=hawkey.CHKSUM_SHA1, digest=b"\x01" * 20,
+               location="a-archive/foo.rpm", repo=repo)
+    sha256 = pkg(algo=hawkey.CHKSUM_SHA256, location="archive/foo.rpm", repo=repo)
+    base = Base()
+    assert resolve.deduplicate_packages(base, [sha256, sha1]) == [sha256]
+    assert len(base.calls) == 2
+
+
+# A SHA-1-only package still needs a calculated digest in the lockfile.
+def sha1_checksum_serialized_as_sha256(resolve):
+    repo = Repo()
+    sha1 = pkg(algo=hawkey.CHKSUM_SHA1, digest=b"\x01" * 20,
+               location="a-archive/foo.rpm", repo=repo)
+    base = Base()
+    resolve.get_packages = lambda base, spec: [sha1]
+
+    class Goal:
+        def __init__(self, sack):
+            self.installed = []
+
+        def install(self, package):
+            self.installed.append(package)
+
+        def run(self, ignore_weak_deps=True):
+            return True
+
+        def list_installs(self):
+            return [sha1]
+
+    original_goal = resolve.hawkey.Goal
+    resolve.hawkey.Goal = Goal
+    try:
+        output = __import__("json").loads(resolve.resolve(base, ["foo"]))
+        checksum = output["packages"][0]["checksum"]
+        assert checksum == {
+            "algorithm": "sha256",
+            "checksum": __import__("hashlib").sha256(sha1.data).hexdigest(),
+        }, output
+        assert len(base.calls) == 1
+    finally:
+        resolve.hawkey.Goal = original_goal
+
+
+def conflicting_bytes(resolve):
+    repo = Repo()
+    a = pkg(algo=hawkey.CHKSUM_SHA1, digest=b"\x01" * 20,
+            location="upstream/foo.rpm", data=b"first", repo=repo)
+    b = pkg(algo=hawkey.CHKSUM_SHA256, location="archive/foo.rpm", data=b"second", repo=repo)
+    msg = raises(resolve, [a, b])
+    assert "foo-0:1.0-1.x86_64" in msg and "'virtual'" in msg, msg
+    assert "upstream/foo.rpm" in msg and "archive/foo.rpm" in msg, msg
+    assert "sha1:" + "01" * 20 in msg and "sha256:" + "01" * 32 in msg, msg
+    assert __import__("hashlib").sha256(b"first").hexdigest() in msg, msg
+    assert __import__("hashlib").sha256(b"second").hexdigest() in msg, msg
+
+
+def weak_checksum_requires_hash(resolve):
+    repo = Repo()
+    a = pkg(algo=hawkey.CHKSUM_SHA1, digest=b"\x01" * 20, repo=repo)
+    b = pkg(algo=hawkey.CHKSUM_SHA1, digest=b"\x01" * 20, repo=repo)
+    base = Base()
+    assert resolve.deduplicate_packages(base, [a, b]) == [a]
+    assert len(base.calls) == 2
+
+
+def download_failure(resolve):
+    repo = Repo()
+    a = pkg(algo=hawkey.CHKSUM_SHA1, digest=b"\x01" * 20,
+            location="upstream/foo.rpm", repo=repo)
+    b = pkg(algo=hawkey.CHKSUM_SHA256, location="archive/foo.rpm", repo=repo)
+    original_pkgdir = repo.pkgdir
+    msg = raises(resolve, [a, b], Base(fail=True))
+    assert "download or SHA-256 verification failed" in msg, msg
+    assert "upstream/foo.rpm" in msg and "archive/foo.rpm" in msg, msg
+    assert "calculated_sha256=unavailable" in msg, msg
+    assert repo.pkgdir == original_pkgdir
+
+    class MissingFile(Base):
+        def download_packages(self, packages):
+            pass
+
+    msg = raises(resolve, [a, b], MissingFile())
+    assert "RPM not found" in msg, msg
+    assert repo.pkgdir == original_pkgdir
+
+    real_open = open
+    def unreadable(*args, **kwargs):
+        raise OSError("unreadable RPM")
+    resolve.open = unreadable
+    try:
+        msg = raises(resolve, [a, b])
+        assert "unreadable RPM" in msg, msg
+        assert repo.pkgdir == original_pkgdir
+    finally:
+        del resolve.open
+
+
+def cacheonly_uses_cached_files(resolve):
+    with tempfile.TemporaryDirectory() as cachedir:
+        a = pkg(algo=hawkey.CHKSUM_SHA1, digest=b"\x01" * 20,
+                location="upstream/foo.rpm", data=b"same")
+        b = pkg(algo=hawkey.CHKSUM_SHA256, location="archive/foo.rpm", data=b"same")
+        a.repo.pkgdir = str(Path(cachedir) / "first")
+        b.repo.pkgdir = str(Path(cachedir) / "second")
+        for package in (a, b):
+            path = Path(package.localPkg())
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(package.data)
+        a.verifyLocalPkg = lambda: True
+        b.verifyLocalPkg = lambda: True
+        base = Base(cacheonly=True)
+        assert resolve.deduplicate_packages(base, [a, b]) == [b]
+        assert base.calls == []
+        assert b.repo.pkgdir == str(Path(cachedir) / "second")
+
+        repeated = pkg(algo=hawkey.CHKSUM_SHA1, digest=b"\x01" * 20, data=b"same")
+        repeated.repo.pkgdir = str(Path(cachedir) / "repeated")
+        repeated_path = Path(repeated.localPkg())
+        repeated_path.parent.mkdir(parents=True, exist_ok=True)
+        repeated_path.write_bytes(repeated.data)
+        repeated.verifyLocalPkg = lambda: True
+        base = Base(cacheonly=True)
+        assert resolve.deduplicate_packages(base, [repeated, repeated]) == [repeated]
+        assert base.calls == []
+
+        other = pkg(algo=hawkey.CHKSUM_SHA256, location="other/foo.rpm", data=b"same")
+        other.repo.pkgdir = repeated.repo.pkgdir
+        other.verifyLocalPkg = lambda: True
+        assert "share a cached RPM path" in raises(
+            resolve, [repeated, other], Base(cacheonly=True)
+        )
+
+
+def cacheonly_invalid_checksum(resolve):
+    with tempfile.TemporaryDirectory() as cachedir:
+        a = pkg(algo=hawkey.CHKSUM_SHA1, digest=b"\x01" * 20, data=b"cached")
+        b = pkg(algo=hawkey.CHKSUM_SHA256, data=b"cached")
+        for index, package in enumerate((a, b)):
+            package.repo.pkgdir = str(Path(cachedir) / str(index))
+            path = Path(package.localPkg())
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(package.data)
+        a.verifyLocalPkg = lambda: True
+        b.verifyLocalPkg = lambda: False
+        msg = raises(resolve, [a, b], Base(cacheonly=True))
+        assert "cached RPM checksum mismatch" in msg, msg
+        assert "foo.rpm" in msg, msg
+
+
+def distinct_identity(resolve):
+    repo = Repo()
+    local = pkg(repoid=hawkey.CMDLINE_REPO_NAME, digest=None)
+    pkgs = [
+        pkg(repo=repo), pkg(name="bar", repo=repo), pkg(version="1.1", repo=repo),
+        pkg(release="2", repo=repo), pkg(epoch=1, repo=repo), pkg(arch="noarch", repo=repo),
+        pkg(repoid="other", repo=repo), local, pkg(repoid=hawkey.CMDLINE_REPO_NAME, digest=None),
+    ]
+    base = Base()
+    assert resolve.deduplicate_packages(base, pkgs) == pkgs
+    assert base.calls == []
+
+
+def failure_before_goal(resolve):
+    repo = Repo()
+    first = pkg(algo=hawkey.CHKSUM_SHA1, digest=b"\x01" * 20, data=b"first", repo=repo)
+    second = pkg(algo=hawkey.CHKSUM_SHA256, data=b"second", repo=repo)
+    resolve.get_packages = lambda base, spec: [first, second]
+    goal_calls = []
+
+    class Goal:
+        def __init__(self, sack):
+            goal_calls.append("created")
+
+    real_hawkey = resolve.hawkey
+    resolve.hawkey = SimpleNamespace(
+        Goal=Goal, CMDLINE_REPO_NAME=real_hawkey.CMDLINE_REPO_NAME,
+        CHKSUM_MD5=real_hawkey.CHKSUM_MD5, CHKSUM_SHA1=real_hawkey.CHKSUM_SHA1,
+        CHKSUM_SHA256=real_hawkey.CHKSUM_SHA256, CHKSUM_SHA384=real_hawkey.CHKSUM_SHA384,
+        CHKSUM_SHA512=real_hawkey.CHKSUM_SHA512,
+    )
+    try:
+        try:
+            resolve.resolve(Base(), ["foo"])
+        except dnf.exceptions.Error:
+            pass
+        else:
+            raise AssertionError("expected conflicting candidates to fail")
+        assert goal_calls == [], "solver goal was constructed before duplicate verification"
+    finally:
+        resolve.hawkey = real_hawkey
+"#
+                ),
+                c_str!("helpers"),
+                c_str!("helpers"),
+            )?;
+            helpers.getattr(check)?.call1((resolve,))?;
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_dedup_identical_checksums() {
+        run_dedup_check("identical").unwrap();
+    }
+
+    #[test]
+    fn test_dedup_cross_algorithm_identical_bytes() {
+        run_dedup_check("cross_algorithm_identical").unwrap();
+        run_dedup_check("matching_sha256_preferred").unwrap();
+        run_dedup_check("sha1_checksum_serialized_as_sha256").unwrap();
+    }
+
+    #[test]
+    fn test_dedup_conflicting_bytes_before_goal() {
+        run_dedup_check("conflicting_bytes").unwrap();
+        run_dedup_check("failure_before_goal").unwrap();
+    }
+
+    #[test]
+    fn test_dedup_weak_checksum_requires_hash() {
+        run_dedup_check("weak_checksum_requires_hash").unwrap();
+    }
+
+    #[test]
+    fn test_dedup_download_failure() {
+        run_dedup_check("download_failure").unwrap();
+    }
+
+    #[test]
+    fn test_dedup_cacheonly_uses_cached_files() {
+        run_dedup_check("cacheonly_uses_cached_files").unwrap();
+        run_dedup_check("cacheonly_invalid_checksum").unwrap();
+    }
+
+    #[test]
+    fn test_dedup_keeps_distinct_identities() {
+        run_dedup_check("distinct_identity").unwrap();
+    }
+
+    /// Reproduce a virtual repo exposing `foo-1.0-1.x86_64` twice (upstream + archive members)
+    /// using real DNF/hawkey loaded from local repo metadata, then run `resolve`.
+    fn resolve_virtual_repo_duplicates(second_digest: &str) -> PyResult<String> {
+        let _guard = DEDUP_TEST_LOCK.lock().unwrap();
+        Python::attach(|py| {
+            let resolve = PyModule::from_code(
+                py,
+                c_str!(include_str!("resolve.py")),
+                c_str!("resolve"),
+                c_str!("resolve"),
+            )?;
+            let helpers = PyModule::from_code(
+                py,
+                c_str!(
+                    r#"
+import tempfile
+from types import SimpleNamespace
+from pathlib import Path
+
+import dnf
+import dnf.package
+import dnf.sack
+import hawkey
+
+PACKAGE = """<package type="rpm"><name>foo</name><arch>{arch}</arch>
+<version epoch="0" ver="1.0" rel="1"/>
+<checksum type="{checksum_type}" pkgid="YES">{checksum}</checksum>
+<summary>foo</summary><description>foo</description><packager>test</packager><url/>
+<time file="0" build="0"/><size package="{size}" installed="1" archive="1"/>
+<location href="{location}"/>
+<format><rpm:license>MIT</rpm:license><rpm:group>Unspecified</rpm:group>
+<rpm:header-range start="0" end="0"/>
+<rpm:provides><rpm:entry name="foo" flags="EQ" epoch="0" ver="1.0" rel="1"/></rpm:provides>
+</format></package>"""
+
+
+def run(resolve, second_digest):
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        (root / "upstream").mkdir()
+        (root / "archive").mkdir()
+        first_bytes = b"identical bytes"
+        second_bytes = b"identical bytes" if second_digest == "identical" else second_digest.encode()
+        (root / "upstream/foo.rpm").write_bytes(first_bytes)
+        (root / "archive/foo.rpm").write_bytes(second_bytes)
+        base = dnf.Base()
+        arch = base.conf.basearch
+        import hashlib
+        checksum = hashlib.sha256(first_bytes).hexdigest()
+        entries = PACKAGE.format(
+            arch=arch,
+            checksum_type="sha1",
+            checksum=hashlib.sha1(first_bytes).hexdigest(),
+            location="upstream/foo.rpm",
+            size=len(first_bytes),
+        )
+        second_checksum = hashlib.sha256(second_bytes).hexdigest()
+        entries += PACKAGE.format(
+            arch=arch,
+            checksum_type="sha256",
+            checksum=second_checksum,
+            location="archive/foo.rpm",
+            size=len(second_bytes),
+        )
+        (root / "primary.xml").write_text(
+            '<?xml version="1.0"?><metadata xmlns="http://linux.duke.edu/metadata/common" '
+            'xmlns:rpm="http://linux.duke.edu/metadata/rpm" packages="2">'
+            + entries + "</metadata>"
+        )
+        (root / "repomd.xml").write_text(
+            '<?xml version="1.0"?><repomd xmlns="http://linux.duke.edu/metadata/repo">'
+            '<data type="primary"><location href="primary.xml"/></data></repomd>'
+        )
+        base.repos.add_new_repo("virtual", base.conf, baseurl=[root.as_uri()], gpgcheck=False)
+        sack = dnf.sack.Sack(
+            pkgcls=dnf.package.Package, pkginitval=base, arch=arch, cachedir=str(root / "cache")
+        )
+        repo = hawkey.Repo("virtual")
+        repo.primary_fn = str(root / "primary.xml")
+        repo.repomd_fn = str(root / "repomd.xml")
+        sack.load_repo(repo, build_cache=False)
+        base._sack = sack
+        base.repos["virtual"].gpgcheck = False
+        candidates = resolve.get_packages(base, "foo")
+        assert len(candidates) == 2
+        assert candidates[0].repoid == candidates[1].repoid == "virtual"
+        return resolve.resolve(base, ["foo"])
+"#
+                ),
+                c_str!("helpers"),
+                c_str!("helpers"),
+            )?;
+            helpers
+                .getattr("run")?
+                .call1((resolve, second_digest))?
+                .extract()
+        })
+    }
+
+    #[test]
+    fn test_dnf_virtual_repo_identical_duplicates_resolve() {
+        let output: serde_json::Value =
+            serde_json::from_str(&resolve_virtual_repo_duplicates("identical").unwrap()).unwrap();
+        let packages = output["packages"].as_array().unwrap();
+        assert_eq!(packages.len(), 1);
+        assert_eq!(packages[0]["name"], "foo");
+        assert_eq!(packages[0]["checksum"]["algorithm"], "sha256");
+        assert_eq!(
+            packages[0]["checksum"]["checksum"],
+            "8ca5bfb553e7ce32d7543bac5f91cdc3e28d650106da4e244c0eeb5e3a71ea64"
+        );
+    }
+
+    #[test]
+    fn test_dnf_virtual_repo_conflicting_duplicates_error() {
+        let err = resolve_virtual_repo_duplicates("different bytes").unwrap_err();
+        let msg = err.to_string();
+        assert!(msg.contains("foo-0:1.0-1."), "{msg}");
+        assert!(msg.contains("upstream/foo.rpm"), "{msg}");
+        assert!(msg.contains("archive/foo.rpm"), "{msg}");
+        assert!(msg.contains("calculated_sha256="), "{msg}");
+        assert!(msg.contains("checksum=sha256:"), "{msg}");
+    }
+
+    #[test]
+    fn test_dedup_solver_errors_are_not_caught() {
+        let _guard = DEDUP_TEST_LOCK.lock().unwrap();
+        Python::attach(|py| {
+            let resolve = PyModule::from_code(
+                py,
+                c_str!(include_str!("resolve.py")),
+                c_str!("resolve"),
+                c_str!("resolve"),
+            )
+            .unwrap();
+            let helpers = PyModule::from_code(
+                py,
+                c_str!(
+                    r#"
+import dnf
+from types import SimpleNamespace
+
+def check(resolve):
+    class Base:
+        class Sack:
+            pass
+        sack = Sack()
+
+    class Goal:
+        def __init__(self, sack):
+            pass
+        def install(self, pkg):
+            pass
+        def run(self, ignore_weak_deps):
+            return False
+        def problem_rules(self):
+            return []
+
+    class Package:
+        name, epoch, version, release, arch = "foo", 0, "1", "1", "x86_64"
+        repoid, chksum = "test", (2, b"\x01" * 32)
+
+    resolve.get_packages = lambda base, spec: [Package()]
+    resolve.hawkey = SimpleNamespace(Goal=Goal, CMDLINE_REPO_NAME=resolve.hawkey.CMDLINE_REPO_NAME)
+    try:
+        resolve.resolve(Base(), ["requested"])
+    except dnf.exceptions.DepsolveError:
+        return
+    raise AssertionError("DNF dependency-resolution error was suppressed")
+"#
+                ),
+                c_str!("helpers"),
+                c_str!("helpers"),
+            )
+            .unwrap();
+            helpers.getattr("check").unwrap().call1((resolve,)).unwrap();
+        });
+    }
 
     #[test]
     fn test_weak_deps() {

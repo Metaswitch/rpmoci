@@ -120,8 +120,9 @@ impl Repository {
         }
 
         // If the repository is a definition, and has an id, return that
-        if let Repository::Definition(repo) = &self
-            && let Some(repoid) = &repo.id
+        if let Repository::Definition(RepositoryDefinition {
+            id: Some(repoid), ..
+        }) = self
         {
             return repoid.to_string();
         }
