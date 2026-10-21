@@ -47,7 +47,7 @@ impl Lockfile {
     ) -> Result<()> {
         // Ensure OCI directory exists
         fs::create_dir_all(image)
-            .context(format!("Failed to create OCI image directory `{}`", &image))?;
+            .context(format!("Failed to create OCI image directory `{}`", image))?;
         let dir = Dir::open_ambient_dir(image, ocidir::cap_std::ambient_authority())
             .context("Failed to open image directory")?;
         let oci_dir = OciDir::ensure(dir)?;
