@@ -207,7 +207,7 @@ def resolve(base, packages):
 
     output = {
         "packages": [
-            pkg_to_dict(pkg)
+            pkg_to_dict(base, pkg, pkg.chksum)
             for pkg in resolved_pkgs
             if pkg.repoid != hawkey.CMDLINE_REPO_NAME
         ],
@@ -254,11 +254,20 @@ def retrieve_keys(repo):
     return raw_keys
 
 
-def pkg_to_dict(pkg):
+def pkg_to_dict(base, pkg, chksum):
+    if _checksum_algorithm(chksum[0]) == "sha256":
+        checksum = chksum_to_dict(chksum)
+    elif pkg.repoid == hawkey.CMDLINE_REPO_NAME:
+        checksum = chksum_to_dict(chksum)
+    else:
+        checksum = {
+            "algorithm": "sha256",
+            "checksum": _download_sha256(base, pkg),
+        }
     return {
         "name": pkg.name,
         "evr": pkg.evr,
-        "checksum": chksum_to_dict(pkg.chksum),
+        "checksum": checksum,
         "repoid": pkg.repoid,
         "arch": pkg.arch,
     }

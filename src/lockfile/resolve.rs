@@ -509,10 +509,44 @@ def matching_sha256_preferred(resolve):
     repo = Repo()
     sha1 = pkg(algo=hawkey.CHKSUM_SHA1, digest=b"\x01" * 20,
                location="a-archive/foo.rpm", repo=repo)
-    sha256 = pkg(algo=hawkey.CHKSUM_SHA256, location="z-archive/foo.rpm", repo=repo)
+    sha256 = pkg(algo=hawkey.CHKSUM_SHA256, location="archive/foo.rpm", repo=repo)
     base = Base()
     assert resolve.deduplicate_packages(base, [sha256, sha1]) == [sha256]
     assert len(base.calls) == 2
+
+
+def sha1_checksum_serialized_as_sha256(resolve):
+    repo = Repo()
+    sha1 = pkg(algo=hawkey.CHKSUM_SHA1, digest=b"\x01" * 20,
+               location="a-archive/foo.rpm", repo=repo)
+    base = Base()
+    resolve.get_packages = lambda base, spec: [sha1]
+
+    class Goal:
+        def __init__(self, sack):
+            self.installed = []
+
+        def install(self, package):
+            self.installed.append(package)
+
+        def run(self, ignore_weak_deps=True):
+            return True
+
+        def list_installs(self):
+            return [sha1]
+
+    original_goal = resolve.hawkey.Goal
+    resolve.hawkey.Goal = Goal
+    try:
+        output = __import__("json").loads(resolve.resolve(base, ["foo"]))
+        checksum = output["packages"][0]["checksum"]
+        assert checksum == {
+            "algorithm": "sha256",
+            "checksum": __import__("hashlib").sha256(sha1.data).hexdigest(),
+        }, output
+        assert len(base.calls) == 1
+    finally:
+        resolve.hawkey.Goal = original_goal
 
 
 def conflicting_bytes(resolve):
@@ -681,6 +715,7 @@ def failure_before_goal(resolve):
     fn test_dedup_cross_algorithm_identical_bytes() {
         run_dedup_check("cross_algorithm_identical").unwrap();
         run_dedup_check("matching_sha256_preferred").unwrap();
+        run_dedup_check("sha1_checksum_serialized_as_sha256").unwrap();
     }
 
     #[test]
