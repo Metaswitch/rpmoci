@@ -495,14 +495,24 @@ def identical(resolve):
 
 def cross_algorithm_identical(resolve):
     repo = Repo()
-    a = pkg(algo=hawkey.CHKSUM_SHA1, digest=b"\x01" * 20,
-            location="upstream/foo.rpm", repo=repo)
-    b = pkg(algo=hawkey.CHKSUM_SHA256, location="archive/foo.rpm", repo=repo)
+    sha1 = pkg(algo=hawkey.CHKSUM_SHA1, digest=b"\x01" * 20,
+               location="upstream/foo.rpm", repo=repo)
+    sha256 = pkg(algo=hawkey.CHKSUM_SHA256, location="z-archive/foo.rpm", repo=repo)
     base = Base()
-    assert resolve.deduplicate_packages(base, [a, b]) == [b]
+    assert resolve.deduplicate_packages(base, [sha1, sha256]) == [sha256]
     assert len(base.calls) == 2
     assert base.calls[0][1] != base.calls[1][1], "same-basename downloads collided"
-    assert a.repo.pkgdir == b.repo.pkgdir == str(Path(tempfile.gettempdir()) / "rpmoci-dedup-cache")
+    assert sha1.repo.pkgdir == sha256.repo.pkgdir == str(Path(tempfile.gettempdir()) / "rpmoci-dedup-cache")
+
+
+def matching_sha256_preferred(resolve):
+    repo = Repo()
+    sha1 = pkg(algo=hawkey.CHKSUM_SHA1, digest=b"\x01" * 20,
+               location="a-archive/foo.rpm", repo=repo)
+    sha256 = pkg(algo=hawkey.CHKSUM_SHA256, location="z-archive/foo.rpm", repo=repo)
+    base = Base()
+    assert resolve.deduplicate_packages(base, [sha256, sha1]) == [sha256]
+    assert len(base.calls) == 2
 
 
 def conflicting_bytes(resolve):
@@ -670,6 +680,7 @@ def failure_before_goal(resolve):
     #[test]
     fn test_dedup_cross_algorithm_identical_bytes() {
         run_dedup_check("cross_algorithm_identical").unwrap();
+        run_dedup_check("matching_sha256_preferred").unwrap();
     }
 
     #[test]

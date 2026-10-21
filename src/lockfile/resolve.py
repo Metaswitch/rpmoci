@@ -50,7 +50,12 @@ def deduplicate_packages(base, packages):
 
         checksums = [_strong_checksum_identity(pkg.chksum) for pkg in group]
         representative = min(
-            group, key=lambda pkg: (pkg.location, _checksum_description(pkg.chksum))
+            group,
+            key=lambda pkg: (
+                _checksum_algorithm(pkg.chksum[0]) != "sha256",
+                pkg.location,
+                _checksum_description(pkg.chksum),
+            ),
         )
         if checksums[0] is not None and all(c == checksums[0] for c in checksums):
             unique.append(representative)
