@@ -25,10 +25,12 @@ import os
 import tempfile
 
 
-def deduplicate_packages(base, packages):
+def deduplicate_packages(base, packages, calculated_checksums=None):
     """Remove byte-identical candidates with the same identity from one repository."""
     groups = {}
     ordered = []
+    # Track object identity so repeated references do not enter a group twice.
+    seen = set()
     for pkg in packages:
         # Keep local RPMs out of repository candidate groups.
         if pkg.repoid == hawkey.CMDLINE_REPO_NAME:
@@ -40,7 +42,9 @@ def deduplicate_packages(base, packages):
         if group is None:
             group = groups[identity] = []
             ordered.append(group)
-        if not any(pkg is candidate for candidate in group):
+        package_id = id(pkg)
+        if package_id not in seen:
+            seen.add(package_id)
             group.append(pkg)
 
     unique = []
@@ -74,7 +78,10 @@ def deduplicate_packages(base, packages):
         sha256s = []
         for pkg in group:
             try:
-                sha256s.append(_download_sha256(base, pkg))
+                sha256 = _download_sha256(base, pkg)
+                sha256s.append(sha256)
+                if calculated_checksums is not None:
+                    calculated_checksums[id(pkg)] = sha256
             except Exception as exc:
                 unavailable = sha256s + [None] * (len(group) - len(sha256s))
                 raise dnf.exceptions.Error(
@@ -189,7 +196,8 @@ def resolve(base, packages):
     pkgs = itertools.chain.from_iterable(
         [get_packages(base, pkg_spec) for pkg_spec in packages]
     )
-    pkgs = deduplicate_packages(base, pkgs)
+    calculated_checksums = {}
+    pkgs = deduplicate_packages(base, pkgs, calculated_checksums)
     goal = hawkey.Goal(base.sack)
     for pkg in pkgs:
         goal.install(pkg)
@@ -211,7 +219,7 @@ def resolve(base, packages):
 
     output = {
         "packages": [
-            pkg_to_dict(base, pkg, pkg.chksum)
+            pkg_to_dict(base, pkg, pkg.chksum, calculated_checksums.get(id(pkg)))
             for pkg in resolved_pkgs
             if pkg.repoid != hawkey.CMDLINE_REPO_NAME
         ],
@@ -258,7 +266,7 @@ def retrieve_keys(repo):
     return raw_keys
 
 
-def pkg_to_dict(base, pkg, chksum):
+def pkg_to_dict(base, pkg, chksum, calculated_sha256=None):
     if _checksum_algorithm(chksum[0]) == "sha256":
         checksum = chksum_to_dict(chksum)
     elif pkg.repoid == hawkey.CMDLINE_REPO_NAME:
@@ -266,7 +274,11 @@ def pkg_to_dict(base, pkg, chksum):
     else:
         checksum = {
             "algorithm": "sha256",
-            "checksum": _download_sha256(base, pkg),
+            "checksum": (
+                calculated_sha256
+                if calculated_sha256 is not None
+                else _download_sha256(base, pkg)
+            ),
         }
     return {
         "name": pkg.name,

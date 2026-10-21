@@ -3,6 +3,15 @@
 ### Added
 ### Fixed
 
+## 0.4.5 - 2026-10-21
+
+### Added
+- Deduplicate identical RPM candidates during dependency resolution.
+
+### Fixed
+- Show a hint to run `rpmoci update` when a build cannot download locked packages.
+- Write SHA-256 checksums to lockfiles when repository metadata uses a weaker checksum.
+
 ## 0.4.4 - 2025-07-01
 
 ### Fixed

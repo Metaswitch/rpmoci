@@ -517,12 +517,14 @@ def matching_sha256_preferred(resolve):
 
 
 # A SHA-1-only package still needs a calculated digest in the lockfile.
-def sha1_checksum_serialized_as_sha256(resolve):
+def sha1_duplicate_checksum_serialized_as_sha256(resolve):
     repo = Repo()
     sha1 = pkg(algo=hawkey.CHKSUM_SHA1, digest=b"\x01" * 20,
                location="a-archive/foo.rpm", repo=repo)
+    duplicate = pkg(algo=hawkey.CHKSUM_SHA1, digest=b"\x01" * 20,
+                    location="z-archive/foo.rpm", repo=repo)
     base = Base()
-    resolve.get_packages = lambda base, spec: [sha1]
+    resolve.get_packages = lambda base, spec: [sha1, duplicate]
 
     class Goal:
         def __init__(self, sack):
@@ -546,7 +548,7 @@ def sha1_checksum_serialized_as_sha256(resolve):
             "algorithm": "sha256",
             "checksum": __import__("hashlib").sha256(sha1.data).hexdigest(),
         }, output
-        assert len(base.calls) == 1
+        assert len(base.calls) == 2, "serialization should reuse the deduplication hash"
     finally:
         resolve.hawkey.Goal = original_goal
 
@@ -717,7 +719,7 @@ def failure_before_goal(resolve):
     fn test_dedup_cross_algorithm_identical_bytes() {
         run_dedup_check("cross_algorithm_identical").unwrap();
         run_dedup_check("matching_sha256_preferred").unwrap();
-        run_dedup_check("sha1_checksum_serialized_as_sha256").unwrap();
+        run_dedup_check("sha1_duplicate_checksum_serialized_as_sha256").unwrap();
     }
 
     #[test]
