@@ -93,6 +93,94 @@ fn test_updatable_lockfile() {
     assert!(!stderr.contains("Removing"));
 }
 
+/// `update -p <name>` should update only the named package and leave the
+/// other locked entries untouched.
+#[test]
+fn test_update_single_package() {
+    let (_tmp_dir, root) = setup_test("updatable_lockfile");
+    let output = rpmoci()
+        .arg("update")
+        .arg("-p")
+        .arg("filesystem")
+        .current_dir(&root)
+        .env("NO_COLOR", "YES")
+        .output()
+        .unwrap();
+    let stderr = std::str::from_utf8(&output.stderr).unwrap();
+    eprintln!("stderr: {stderr}");
+    assert!(output.status.success());
+    // Target package was updated.
+    assert!(stderr.contains("Updating filesystem 1.1-9.cm2 -> "));
+    // Non-targeted packages remained pinned at their stale versions.
+    assert!(!stderr.contains("Updating etcd"));
+    assert!(!stderr.contains("Updating glibc"));
+    assert!(!stderr.contains("Removing"));
+}
+
+/// `update -p <name> -p <name>` should update exactly the named set.
+#[test]
+fn test_update_multiple_packages() {
+    let (_tmp_dir, root) = setup_test("updatable_lockfile");
+    let output = rpmoci()
+        .arg("update")
+        .arg("-p")
+        .arg("filesystem")
+        .arg("-p")
+        .arg("glibc")
+        .current_dir(&root)
+        .env("NO_COLOR", "YES")
+        .output()
+        .unwrap();
+    let stderr = std::str::from_utf8(&output.stderr).unwrap();
+    eprintln!("stderr: {stderr}");
+    assert!(output.status.success());
+    // Both target packages were updated.
+    assert!(stderr.contains("Updating filesystem 1.1-9.cm2 -> "));
+    assert!(stderr.contains("Updating glibc 2.35-1.cm2 -> "));
+    // The non-targeted package remained pinned.
+    assert!(!stderr.contains("Updating etcd"));
+    assert!(!stderr.contains("Removing"));
+}
+
+/// `update -p <unknown>` should fail with a clear error before contacting
+/// any repositories.
+#[test]
+fn test_update_package_not_in_lockfile() {
+    let (_tmp_dir, root) = setup_test("updatable_lockfile");
+    let output = rpmoci()
+        .arg("update")
+        .arg("-p")
+        .arg("definitely-not-a-real-package")
+        .current_dir(&root)
+        .env("NO_COLOR", "YES")
+        .output()
+        .unwrap();
+    let stderr = std::str::from_utf8(&output.stderr).unwrap();
+    eprintln!("stderr: {stderr}");
+    assert!(!output.status.success());
+    assert!(stderr.contains("is not in the lock file"));
+}
+
+/// `update --package` combined with `--from-lockfile` should be rejected
+/// by clap before any work is done.
+#[test]
+fn test_update_package_conflicts_with_from_lockfile() {
+    let (_tmp_dir, root) = setup_test("updatable_lockfile");
+    let output = rpmoci()
+        .arg("update")
+        .arg("-p")
+        .arg("filesystem")
+        .arg("--from-lockfile")
+        .current_dir(&root)
+        .env("NO_COLOR", "YES")
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    let stderr = std::str::from_utf8(&output.stderr).unwrap();
+    eprintln!("stderr: {stderr}");
+    assert!(stderr.contains("cannot be used with"));
+}
+
 #[test]
 fn test_unparseable_lockfile() {
     let (_tmp_dir, root) = setup_test("unparseable_lockfile");

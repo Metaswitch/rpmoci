@@ -60,10 +60,29 @@ pub fn main(command: Command) -> anyhow::Result<()> {
         Command::Update {
             manifest_path,
             from_lockfile,
+            package,
         } => {
             let (cfg, lockfile_path, existing_lockfile) = load_config_and_lock_file(manifest_path)?;
 
-            let lockfile = if let Ok(Some(lockfile)) = &existing_lockfile {
+            let lockfile = if !package.is_empty() {
+                // `--package` requires an existing, parseable, up-to-date lockfile.
+                match &existing_lockfile {
+                    Ok(Some(lockfile))
+                        if lockfile.is_compatible_excluding_local_rpms(&cfg) =>
+                    {
+                        lockfile.resolve_updating(&cfg, &package)?
+                    }
+                    Ok(Some(_)) => bail!(
+                        "the lock file is not up-to-date. Use of --package requires that the lock file is up-to-date; run `rpmoci update` first"
+                    ),
+                    Ok(None) => bail!(
+                        "no lock file found. Use of --package requires an existing lock file"
+                    ),
+                    Err(_) => bail!(
+                        "failed to parse existing lock file. Use of --package requires a valid lock file"
+                    ),
+                }
+            } else if let Ok(Some(lockfile)) = &existing_lockfile {
                 if lockfile.is_compatible_excluding_local_rpms(&cfg) && from_lockfile {
                     lockfile.resolve_from_previous(&cfg)?
                 } else {
